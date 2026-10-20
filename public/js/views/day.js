@@ -9,6 +9,7 @@ import { openSheet, segmented } from '../ui/sheet.js';
 import { toast, toastError } from '../ui/toast.js';
 import { amountStep } from '../ui/amount-step.js';
 import { openAddFood } from '../ui/add-food.js';
+import { foodAvatar, kcalLine, macroColumns } from '../ui/macros.js';
 
 const SWIPE_MIN_X = 60;
 const SWIPE_MAX_Y = 40;
@@ -111,14 +112,7 @@ export async function render(container, { date }) {
         'div',
         { class: 'meal-head' },
         h('h2', { class: 'meal-name' }, SLOT_LABELS[slot]),
-        entries.length
-          ? h(
-              'span',
-              { class: 'meal-totals' },
-              h('span', { class: 'meal-kcal' }, `${fmt(totals.kcal)} kcal`),
-              h('span', { class: 'meal-protein' }, `${fmt(totals.protein, 1)} g protein`),
-            )
-          : null,
+        entries.length ? kcalLine(totals.kcal) : null,
         entries.length
           ? h(
               'button',
@@ -127,14 +121,25 @@ export async function render(container, { date }) {
             )
           : null,
       ),
+      entries.length ? h('div', { class: 'meal-summary' }, macroColumns(totals)) : null,
       entries.length
-        ? entries.map((entry) =>
-            h(
-              'button',
-              { class: 'entry', type: 'button', onclick: () => openEntry(entry) },
-              h('span', { class: 'entry-name' }, entry.name, h('span', { class: 'entry-grams' }, ` · ${fmt(entry.grams, 1)} g`)),
-              h('span', { class: 'entry-protein', title: 'Protein' }, `${fmt(entry.nutrients.protein, 1)} g`),
-              h('span', { class: 'entry-kcal', title: 'Calories' }, fmt(entry.nutrients.kcal)),
+        ? h(
+            'div',
+            { class: 'food-cards' },
+            entries.map((entry) =>
+              h(
+                'button',
+                { class: 'food-card', type: 'button', onclick: () => openEntry(entry) },
+                foodAvatar(entry.name),
+                h(
+                  'span',
+                  { class: 'food-main' },
+                  h('span', { class: 'food-name' }, entry.name),
+                  kcalLine(entry.nutrients.kcal, `${fmt(entry.grams, 1)} g`),
+                ),
+                h('span', { class: 'food-more', 'aria-hidden': 'true' }, icon('more', 18)),
+                macroColumns(entry.nutrients),
+              ),
             ),
           )
         : h('p', { class: 'meal-empty' }, 'Nothing planned yet'),

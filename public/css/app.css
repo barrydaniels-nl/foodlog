@@ -210,7 +210,9 @@ img {
 /* ---------- Page & typography ---------- */
 
 .page {
-  animation: page-in 0.35s var(--ease) both;
+  /* "backwards", not "both": a filled transform animation would make .page the
+     containing block for position:fixed children like the add button. */
+  animation: page-in 0.35s var(--ease) backwards;
 }
 @keyframes page-in {
   from {
@@ -369,7 +371,7 @@ img {
   color: #fff;
   box-shadow: var(--shadow-fab);
   transition: transform 0.15s var(--ease);
-  animation: pop 0.4s var(--ease) 0.15s both;
+  animation: pop 0.4s var(--ease) 0.35s both;
 }
 .fab:active {
   transform: scale(0.92);
@@ -975,62 +977,137 @@ button.list-item:active {
   font-size: 16px;
   font-weight: 700;
 }
-.meal-totals {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  line-height: 1.2;
-}
-.meal-kcal {
-  font-size: 14px;
-  font-weight: 650;
-  color: var(--green);
-}
-.meal-protein {
-  font-size: 12px;
-  font-weight: 650;
-  color: var(--indigo);
-}
-.entry {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  width: 100%;
-  margin: 0;
-  padding: 7px 8px 7px 0;
-  border: none;
-  border-radius: 10px;
-  background: transparent;
-  text-align: left;
-  font-size: 14px;
-  color: #45534a;
-}
-.entry:hover {
+.meal-summary {
+  margin: 2px 8px 12px 0;
+  padding: 10px 12px;
+  border-radius: 14px;
   background: var(--bg);
 }
-.entry-name {
-  flex: 1;
+.meal-summary .macro-cols {
+  margin-top: 0;
+}
+
+/* Food cards with flame kcal line and macro columns (reference style). */
+.kcal-line {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--green-strong);
+  white-space: nowrap;
+}
+.kcal-detail {
+  color: var(--muted);
+  font-weight: 500;
+}
+.food-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-right: 8px;
+}
+.food-card {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  column-gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 12px 12px 12px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  text-align: left;
+  transition:
+    border-color 0.2s,
+    transform 0.12s var(--ease);
+}
+.food-card:hover {
+  border-color: #cfe3d5;
+}
+.food-card:active {
+  transform: scale(0.985);
+}
+.food-avatar {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text);
+}
+.food-main {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+}
+.food-name {
   overflow: hidden;
+  font-size: 15px;
+  font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.entry-grams {
+.food-more {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1.5px solid var(--line);
+  border-radius: 50%;
   color: var(--muted);
 }
-.entry-protein {
-  flex: none;
-  min-width: 46px;
-  text-align: right;
-  color: var(--indigo);
-  font-weight: 600;
+.food-card .macro-cols {
+  grid-column: 1 / -1;
 }
-.entry-kcal {
+.macro-cols {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+.macro-col {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.macro-bar {
+  position: relative;
   flex: none;
-  min-width: 34px;
-  text-align: right;
-  color: var(--text);
-  font-weight: 600;
+  width: 5px;
+  min-height: 34px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: #edf1ee;
+}
+.macro-bar i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 3px;
+}
+.macro-protein .macro-bar i {
+  background: var(--indigo);
+}
+.macro-fat .macro-bar i {
+  background: #ef7b5a;
+}
+.macro-carbs .macro-bar i {
+  background: #f2c14e;
+}
+.macro-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.25;
+}
+.macro-text b {
+  font-size: 14px;
+  font-weight: 750;
+}
+.macro-text span {
+  font-size: 12px;
+  color: var(--muted);
 }
 .meal-empty {
   margin: 2px 0 4px;
@@ -1168,28 +1245,19 @@ button.list-item:active {
 .meal-tile:active {
   transform: scale(0.985);
 }
-.meal-tile h3 {
-  margin: 0 0 4px;
-  font-size: 16px;
+.meal-tile-head {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  column-gap: 12px;
+  align-items: center;
 }
 .meal-tile p {
-  margin: 0;
+  overflow: hidden;
+  margin: 10px 0 0;
   font-size: 13px;
   color: var(--muted);
-}
-.meal-tile .meal-tile-stats {
-  margin-top: 10px;
-  display: flex;
-  gap: 14px;
-  font-size: 13px;
-}
-.kcal-text {
-  color: var(--green-strong);
-  font-weight: 700;
-}
-.protein-text {
-  color: var(--indigo);
-  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .toolbar {
   display: flex;

@@ -7,6 +7,7 @@ import { openSheet } from '../ui/sheet.js';
 import { toast, toastError } from '../ui/toast.js';
 import { amountStep, per100Of, statTiles } from '../ui/amount-step.js';
 import { openFoodPicker } from '../ui/add-food.js';
+import { foodAvatar, kcalLine, macroColumns } from '../ui/macros.js';
 
 /**
  * @param {HTMLElement} container
@@ -39,15 +40,19 @@ async function renderList(container) {
             h(
               'a',
               { class: 'meal-tile', href: `#/meals/${meal.id}`, style: { '--i': index, color: 'inherit', textDecoration: 'none' } },
-              h('h3', {}, meal.name),
-              h('p', {}, meal.items.map((item) => item.name).join(', ')),
               h(
-                'div',
-                { class: 'meal-tile-stats' },
-                h('span', { class: 'kcal-text' }, `${fmt(meal.totals.kcal)} kcal`),
-                h('span', { class: 'protein-text' }, `${fmt(meal.totals.protein, 1)} g protein`),
-                h('span', { class: 'muted' }, `${fmt(meal.totals.carbs)} g carbs · ${fmt(meal.totals.fat)} g fat`),
+                'span',
+                { class: 'meal-tile-head' },
+                foodAvatar(meal.name),
+                h(
+                  'span',
+                  { class: 'food-main' },
+                  h('span', { class: 'food-name' }, meal.name),
+                  kcalLine(meal.totals.kcal, `${meal.items.length} ${meal.items.length === 1 ? 'food' : 'foods'}`),
+                ),
               ),
+              h('p', {}, meal.items.map((item) => item.name).join(', ')),
+              macroColumns(meal.totals),
             ),
           ),
         )
