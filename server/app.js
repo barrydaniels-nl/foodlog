@@ -8,6 +8,7 @@ import { registerOffRoutes } from './off.js';
 import { createMealsRepo, registerMealRoutes } from './meals.js';
 import { createDaysRepo, registerDayRoutes } from './days.js';
 import { createBackup } from './backup.js';
+import { createReferenceRepo, registerReferenceRoutes } from './nevo.js';
 
 const NODE_MODULES = fileURLToPath(new URL('../node_modules/', import.meta.url));
 
@@ -39,6 +40,7 @@ export function createApp({ db, offClient, today, publicDir, backupDir }) {
   registerIngredientRoutes(router, ingredients);
   registerMealRoutes(router, meals);
   registerDayRoutes(router, days);
+  registerReferenceRoutes(router, { reference: createReferenceRepo(db), ingredients });
   createBackup(db, { settings, today, backupDir }).registerRoutes(router);
   if (offClient) registerOffRoutes(router, { offClient, settings });
 

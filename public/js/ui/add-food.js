@@ -5,7 +5,7 @@
 import { api } from '../api.js';
 import { MEAL_SLOTS, NUTRIENT_KEYS, SLOT_LABELS } from '../shared/constants.js';
 import { roundNutrients } from '../shared/nutrition.js';
-import { resolveBarcode, saveIngredient } from '../food-lookup.js';
+import { adoptReference, resolveBarcode, saveIngredient } from '../food-lookup.js';
 import { h, fmt, guarded } from './dom.js';
 import { icon } from './icons.js';
 import { openSheet, segmented } from './sheet.js';
@@ -39,10 +39,10 @@ export function openFoodPicker({ title, includeMeals = false, header, confirmLab
   const backLink = () =>
     h('button', { class: 'back-link', type: 'button', onclick: showSearch }, icon('back', 16), 'Back to search');
 
-  async function run(action) {
+  async function run(action, { keepOpen = false } = {}) {
     try {
       await action();
-      sheet.close();
+      if (!keepOpen) sheet.close();
     } catch (error) {
       toastError(error);
     }
@@ -55,6 +55,7 @@ export function openFoodPicker({ title, includeMeals = false, header, confirmLab
         onPickIngredient: showAmount,
         onPickMeal: showMeal,
         onPickCandidate: showForm,
+        onPickReference: (food) => run(async () => showAmount(await adoptReference(food)), { keepOpen: true }),
         onScanned: handleBarcode,
       }),
     );

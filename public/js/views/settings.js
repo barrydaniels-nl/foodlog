@@ -40,8 +40,62 @@ function numberField(label, value, unit) {
 /**
  * @param {HTMLElement} container
  */
+/** Settings card for uploading the NEVO dataset (RIVM's Dutch food table). */
+function nevoCard(status) {
+  const fileInput = h('input', {
+    type: 'file',
+    accept: '.csv,text/csv',
+    hidden: true,
+    onchange: async () => {
+      const [file] = fileInput.files;
+      fileInput.value = '';
+      if (!file) return;
+      try {
+        const result = await api.post('/api/reference/nevo', { csv: await file.text() });
+        toast(`Loaded ${result.count.toLocaleString('en-GB')} basic foods (NEVO ${result.version})`);
+        setTimeout(() => location.reload(), 1200);
+      } catch (error) {
+        toastError(error);
+      }
+    },
+  });
+  return h(
+    'section',
+    { class: 'card settings-card' },
+    h('h2', {}, 'Basic foods (NEVO)'),
+    h(
+      'p',
+      {},
+      status
+        ? `${status.count.toLocaleString('en-GB')} foods from NEVO online ${status.version} are searchable when you add food.`
+        : 'Add values for fresh foods like eggs and vegetables: request the free NEVO dataset from RIVM, then upload the file named like NEVO2025_v9.0.csv.',
+    ),
+    h(
+      'div',
+      { class: 'actions', style: { marginTop: 0 } },
+      h(
+        'button',
+        { class: 'btn btn-soft', type: 'button', onclick: () => fileInput.click() },
+        icon('upload', 18),
+        status ? 'Upload newer file' : 'Upload NEVO file',
+      ),
+    ),
+    fileInput,
+    h(
+      'p',
+      { class: 'muted', style: { margin: '12px 0 0', fontSize: '13px' } },
+      status ? `${status.credit}. ` : '',
+      h(
+        'a',
+        { href: 'https://www.rivm.nl/en/dutch-food-composition-database/nevo-online-request-dataset', target: '_blank', rel: 'noopener' },
+        status ? 'NEVO at RIVM' : 'Request the NEVO dataset',
+      ),
+    ),
+  );
+}
+
 export async function render(container) {
-  const settings = await api.get('/api/settings');
+  const [settings, reference] = await Promise.all([api.get('/api/settings'), api.get('/api/reference/status')]);
 
   const kcal = numberField('Calories per day', settings.kcalTarget, 'kcal');
   const protein = numberField('Protein per day', settings.proteinTarget, 'g');
@@ -124,6 +178,7 @@ export async function render(container) {
       'div',
       { class: 'stagger' },
       card('Daily targets', 'The day screen measures your plan against these.', targetsForm),
+      nevoCard(reference.nevo),
       card('Food search region', 'Open Food Facts results from this country are shown first.', region),
       card(
         'Backup',

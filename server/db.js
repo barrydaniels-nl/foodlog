@@ -67,6 +67,35 @@ const MIGRATIONS = [
   CREATE INDEX entries_date ON entries(date);
   CREATE INDEX entries_ingredient ON entries(ingredient_id);
   `,
+  `
+  -- Read-only reference tables (e.g. NEVO). Foods are copied into
+  -- ingredients when picked; reference_code keeps the link while unchanged.
+  ALTER TABLE ingredients ADD COLUMN reference_code TEXT;
+  CREATE UNIQUE INDEX ingredients_reference_code ON ingredients(reference_code) WHERE reference_code IS NOT NULL;
+
+  CREATE TABLE reference_foods (
+    source TEXT NOT NULL,
+    code INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    name_en TEXT,
+    synonym TEXT,
+    food_group TEXT,
+    per TEXT NOT NULL,
+    kcal REAL NOT NULL,
+    protein REAL NOT NULL,
+    carbs REAL NOT NULL,
+    fat REAL NOT NULL,
+    fiber REAL NOT NULL,
+    PRIMARY KEY (source, code)
+  );
+
+  CREATE TABLE reference_sources (
+    source TEXT PRIMARY KEY,
+    version TEXT NOT NULL,
+    count INTEGER NOT NULL,
+    imported_at TEXT NOT NULL
+  );
+  `,
 ];
 
 /**

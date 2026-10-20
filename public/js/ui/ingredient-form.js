@@ -142,6 +142,9 @@ export function ingredientForm({ initial = {}, notice, submitLabel, onSubmit, on
       }),
     },
     notice ? h('p', { class: 'notice' }, notice) : null,
+    initial.referenceCode
+      ? h('p', { class: 'muted', style: { margin: '0 0 12px', fontSize: '13px' } }, 'From NEVO (RIVM). Changing its values makes it your own food.')
+      : null,
     fromOff && !initial.complete && !notice
       ? h('p', { class: 'notice' }, 'Open Food Facts is missing some values. Fill in the highlighted ones from the label.')
       : null,

@@ -18,6 +18,15 @@ export async function saveIngredient(input) {
 }
 
 /**
+ * Copies a NEVO basic food into your foods (or returns the copy you already have).
+ * @param {{source: string, code: number}} food a /api/reference/search result
+ * @returns {Promise<object>} the ingredient
+ */
+export function adoptReference(food) {
+  return api.post(`/api/reference/${food.source}/${food.code}/adopt`);
+}
+
+/**
  * Finds what a scanned barcode refers to: a saved ingredient, an Open Food
  * Facts candidate to confirm, or an empty form to fill in by hand.
  * @param {string} code

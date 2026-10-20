@@ -1260,6 +1260,12 @@ button.list-item:active {
   font-size: 14px;
   color: var(--muted);
 }
+.credit {
+  margin: 28px 8px 0;
+  font-size: 11px;
+  color: var(--faint);
+  text-align: center;
+}
 .about {
   margin-top: 24px;
   font-size: 13px;

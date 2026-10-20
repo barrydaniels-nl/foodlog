@@ -2,6 +2,7 @@
 import { toIsoDate } from './shared/dates.js';
 import { hydrateIcons } from './ui/icons.js';
 import { h } from './ui/dom.js';
+import { api } from './api.js';
 import * as dayView from './views/day.js';
 import * as mealsView from './views/meals.js';
 import * as foodsView from './views/foods.js';
@@ -17,6 +18,11 @@ const ROUTES = [
 
 const main = document.getElementById('view');
 let cleanup = null;
+// RIVM requires its credit line on nutritional output once NEVO data is in use.
+const nevoCredit = api
+  .get('/api/reference/status')
+  .then(({ nevo }) => nevo?.credit ?? null)
+  .catch(() => null);
 
 function todayHash() {
   return `#/day/${toIsoDate(new Date())}`;
@@ -44,6 +50,8 @@ async function route() {
   main.replaceChildren(section);
   try {
     const result = await match.r.view.render(section, match.r.params(match.m));
+    const credit = await nevoCredit;
+    if (credit && section.isConnected) section.append(h('p', { class: 'credit' }, credit));
     if (typeof result === 'function') {
       if (section.isConnected) cleanup = result;
       else result();

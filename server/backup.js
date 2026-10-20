@@ -15,6 +15,8 @@ const isNullableText = (v) => v === null || typeof v === 'string';
 const isNumber = (v) => typeof v === 'number' && Number.isFinite(v);
 const isId = (v) => Number.isInteger(v) && v > 0;
 const isBoolean = (v) => typeof v === 'boolean';
+// Optional so backups made before the field existed still import.
+const isOptionalText = (v) => v === undefined || isNullableText(v);
 
 const ROW_SHAPES = {
   ingredients: {
@@ -28,6 +30,7 @@ const ROW_SHAPES = {
     fat: isNumber,
     fiber: isNumber,
     source: isText,
+    referenceCode: isOptionalText,
     archived: isBoolean,
     portions: Array.isArray,
   },
@@ -103,8 +106,8 @@ export function createBackup(db, { settings, today, backupDir }) {
   };
   const insert = {
     ingredient: db.prepare(
-      `INSERT INTO ingredients (id, name, brand, barcode, kcal, protein, carbs, fat, fiber, source, archived)
-       VALUES (:id, :name, :brand, :barcode, :kcal, :protein, :carbs, :fat, :fiber, :source, :archived)`,
+      `INSERT INTO ingredients (id, name, brand, barcode, kcal, protein, carbs, fat, fiber, source, reference_code, archived)
+       VALUES (:id, :name, :brand, :barcode, :kcal, :protein, :carbs, :fat, :fiber, :source, :referenceCode, :archived)`,
     ),
     portion: db.prepare('INSERT INTO portions (ingredient_id, label, grams) VALUES (?, ?, ?)'),
     meal: db.prepare('INSERT INTO meals (id, name) VALUES (?, ?)'),
@@ -140,6 +143,7 @@ export function createBackup(db, { settings, today, backupDir }) {
         fat: row.fat,
         fiber: row.fiber,
         source: row.source,
+        referenceCode: row.reference_code,
         archived: row.archived === 1,
         portions: (portions.get(row.id) ?? []).map(({ label, grams }) => ({ label, grams })),
       })),
@@ -187,7 +191,7 @@ export function createBackup(db, { settings, today, backupDir }) {
         db.exec('DELETE FROM entries; DELETE FROM meal_items; DELETE FROM meals; DELETE FROM portions; DELETE FROM ingredients; DELETE FROM settings;');
         settings.update(backup.settings);
         for (const { portions, archived, ...ingredient } of backup.ingredients) {
-          insert.ingredient.run({ ...ingredient, archived: archived ? 1 : 0 });
+          insert.ingredient.run({ ...ingredient, referenceCode: ingredient.referenceCode ?? null, archived: archived ? 1 : 0 });
           for (const portion of portions) insert.portion.run(ingredient.id, portion.label, portion.grams);
         }
         for (const meal of backup.meals) {

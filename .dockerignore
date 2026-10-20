@@ -6,3 +6,4 @@ docs
 *.db
 *.db-*
 .DS_Store
+nevo

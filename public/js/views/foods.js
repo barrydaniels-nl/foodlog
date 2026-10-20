@@ -1,6 +1,6 @@
 /** Your ingredient database: search, add, edit, delete (archive) and restore. */
 import { api } from '../api.js';
-import { resolveBarcode, saveIngredient } from '../food-lookup.js';
+import { adoptReference, resolveBarcode, saveIngredient } from '../food-lookup.js';
 import { h, fmt, debounce } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
 import { openSheet } from '../ui/sheet.js';
@@ -67,6 +67,7 @@ export async function render(container) {
           { class: 'list-title', style: { display: 'block' } },
           item.name,
           item.archived ? h('span', { class: 'badge badge-muted', style: { marginLeft: '6px' } }, 'Deleted') : null,
+          item.referenceCode ? h('span', { class: 'badge badge-warn', style: { marginLeft: '6px' } }, 'NEVO') : null,
         ),
         h('span', { class: 'list-sub', style: { display: 'block' } }, sub),
       ),
@@ -170,6 +171,17 @@ export async function render(container) {
         onPickCandidate: (candidate, notice) => {
           sheet.close();
           openCreate(candidate, notice);
+        },
+        onPickReference: async (food) => {
+          try {
+            const ingredient = await adoptReference(food);
+            sheet.close();
+            toast(`${ingredient.name} is in your foods`);
+            load();
+            openEditor(ingredient);
+          } catch (error) {
+            toastError(error);
+          }
         },
         onScanned: (code) => handleBarcode(code, sheet),
       }),

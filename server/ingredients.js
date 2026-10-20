@@ -1,10 +1,11 @@
 /** The personal ingredient database: values per 100 g, portions, soft delete. */
+import { NUTRIENT_KEYS } from '../public/js/shared/constants.js';
 import { HttpError } from './http.js';
 import { transaction } from './db.js';
 import { optionalString, requireId, requireNumber, requireString } from './validate.js';
 
 const BARCODE_PATTERN = /^\d{8,14}$/;
-const SOURCES = new Set(['manual', 'off']);
+const SOURCES = new Set(['manual', 'off', 'nevo']);
 const MAX_PORTIONS = 10;
 const LIST_LIMIT = 50;
 const RECENT_LIMIT = 8;
@@ -20,7 +21,8 @@ const RECENT_LIMIT = 8;
  * @property {number} carbs
  * @property {number} fat
  * @property {number} fiber
- * @property {'manual'|'off'} source
+ * @property {'manual'|'off'|'nevo'} source
+ * @property {string|null} referenceCode e.g. 'nevo:83' while the values are unchanged
  * @property {boolean} archived
  * @property {Array<{id: number, label: string, grams: number}>} portions
  */
@@ -43,7 +45,7 @@ function validateInput(input) {
     throw new HttpError(400, `portions must be a list of at most ${MAX_PORTIONS} items`);
   }
   const source = input.source ?? 'manual';
-  if (!SOURCES.has(source)) throw new HttpError(400, 'source must be "manual" or "off"');
+  if (!SOURCES.has(source)) throw new HttpError(400, `source must be one of: ${[...SOURCES].join(', ')}`);
   return {
     name: requireString(input.name, 'name', { maxLength: 120 }),
     brand: optionalString(input.brand, 'brand', { maxLength: 80 }),
@@ -73,14 +75,16 @@ export function createIngredientsRepo(db, { today }) {
   const statements = {
     byId: db.prepare('SELECT * FROM ingredients WHERE id = ?'),
     byBarcode: db.prepare('SELECT * FROM ingredients WHERE barcode = ?'),
+    byReference: db.prepare('SELECT * FROM ingredients WHERE reference_code = ?'),
     portions: db.prepare('SELECT id, label, grams FROM portions WHERE ingredient_id = ? ORDER BY id'),
     insert: db.prepare(
-      `INSERT INTO ingredients (name, brand, barcode, kcal, protein, carbs, fat, fiber, source)
-       VALUES (:name, :brand, :barcode, :kcal, :protein, :carbs, :fat, :fiber, :source)`,
+      `INSERT INTO ingredients (name, brand, barcode, kcal, protein, carbs, fat, fiber, source, reference_code)
+       VALUES (:name, :brand, :barcode, :kcal, :protein, :carbs, :fat, :fiber, :source, :referenceCode)`,
     ),
     update: db.prepare(
       `UPDATE ingredients SET name = :name, brand = :brand, barcode = :barcode, kcal = :kcal, protein = :protein,
-         carbs = :carbs, fat = :fat, fiber = :fiber, source = :source, updated_at = datetime('now')
+         carbs = :carbs, fat = :fat, fiber = :fiber, source = :source, reference_code = :referenceCode,
+         updated_at = datetime('now')
        WHERE id = :id`,
     ),
     deletePortions: db.prepare('DELETE FROM portions WHERE ingredient_id = ?'),
@@ -122,6 +126,7 @@ export function createIngredientsRepo(db, { today }) {
       fat: row.fat,
       fiber: row.fiber,
       source: row.source,
+      referenceCode: row.reference_code,
       archived: row.archived === 1,
       portions: statements.portions.all(row.id).map((p) => ({ ...p })),
     };
@@ -153,6 +158,12 @@ export function createIngredientsRepo(db, { today }) {
     return row ? hydrate(row) : null;
   }
 
+  /** @returns {Ingredient|null} includes archived ingredients */
+  function findByReference(referenceCode) {
+    const row = statements.byReference.get(referenceCode);
+    return row ? hydrate(row) : null;
+  }
+
   /** @returns {Ingredient[]} */
   function list({ q = '', includeArchived = false } = {}) {
     const term = q.trim();
@@ -164,13 +175,17 @@ export function createIngredientsRepo(db, { today }) {
     return statements.search.all(params).map(hydrate);
   }
 
-  /** @returns {Ingredient} */
-  function create(input) {
+  /**
+   * @param {object} input
+   * @param {{referenceCode?: string|null}} [link] set when copied from a reference table
+   * @returns {Ingredient}
+   */
+  function create(input, { referenceCode = null } = {}) {
     const clean = validateInput(input);
     assertBarcodeFree(clean.barcode);
     const id = transaction(db, () => {
       const { portions, ...fields } = clean;
-      const { lastInsertRowid } = statements.insert.run(fields);
+      const { lastInsertRowid } = statements.insert.run({ ...fields, referenceCode });
       writePortions(lastInsertRowid, portions);
       return Number(lastInsertRowid);
     });
@@ -182,9 +197,15 @@ export function createIngredientsRepo(db, { today }) {
     const existing = get(id);
     const clean = validateInput(input);
     assertBarcodeFree(clean.barcode, existing.id);
+    // Reference data may only be used unchanged: edited values make it your own food.
+    const keepsReference =
+      existing.referenceCode !== null && NUTRIENT_KEYS.every((key) => clean[key] === existing[key]);
+    const link = keepsReference
+      ? { referenceCode: existing.referenceCode, source: existing.source }
+      : { referenceCode: null, source: existing.referenceCode ? 'manual' : clean.source };
     transaction(db, () => {
       const { portions, ...fields } = clean;
-      statements.update.run({ ...fields, id: existing.id });
+      statements.update.run({ ...fields, ...link, id: existing.id });
       writePortions(existing.id, portions);
       const { name, brand, kcal, protein, carbs, fat, fiber } = fields;
       statements.refreshEntries.run({ id: existing.id, fromDate: today(), name, brand, kcal, protein, carbs, fat, fiber });
@@ -206,6 +227,7 @@ export function createIngredientsRepo(db, { today }) {
   return {
     get,
     findByBarcode,
+    findByReference,
     list,
     recent,
     create,

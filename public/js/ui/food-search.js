@@ -45,6 +45,25 @@ function mealItem(meal, onPick) {
   );
 }
 
+function referenceItem(food, onPick) {
+  return h(
+    'button',
+    { class: 'list-item', type: 'button', onclick: () => onPick(food) },
+    h('span', { class: 'thumb thumb-placeholder', style: { color: '#a26f12' } }, icon('sun')),
+    h(
+      'span',
+      { class: 'list-main' },
+      h('span', { class: 'list-title', style: { display: 'block' } }, food.name),
+      h(
+        'span',
+        { class: 'list-sub', style: { display: 'block' } },
+        [food.nameEn, `${fmt(food.protein, 1)} g protein`].filter(Boolean).join(' · '),
+      ),
+    ),
+    h('span', { class: 'list-side' }, h('strong', {}, fmt(food.kcal)), food.per === '100ml' ? 'kcal/100ml' : 'kcal/100g'),
+  );
+}
+
 function candidateItem(candidate, onPick) {
   return h(
     'button',
@@ -73,11 +92,12 @@ function candidateItem(candidate, onPick) {
  *   onPickIngredient: (ingredient: object) => void,
  *   onPickMeal?: (meal: object) => void,
  *   onPickCandidate: (candidate: object, notice?: string) => void,
+ *   onPickReference?: (food: object) => void,
  *   onScanned?: (barcode: string) => void,
- * }} options
+ * }} options `onPickReference` enables the "Basic foods" (NEVO) section
  * @returns {HTMLElement}
  */
-export function foodSearch({ includeMeals = false, onPickIngredient, onPickMeal, onPickCandidate, onScanned }) {
+export function foodSearch({ includeMeals = false, onPickIngredient, onPickMeal, onPickCandidate, onPickReference, onScanned }) {
   let localSequence = 0;
   let offSequence = 0;
   // The query whose Open Food Facts results are loading or shown.
@@ -140,13 +160,15 @@ export function foodSearch({ includeMeals = false, onPickIngredient, onPickMeal,
       }
     }
     const meals = (await mealsPromise).filter((meal) => !q || meal.name.toLowerCase().includes(q.toLowerCase()));
+    const basics = q && onPickReference ? await api.get(`/api/reference/search?q=${encodeURIComponent(q)}`) : [];
     if (mySequence !== localSequence) return;
 
-    const nothing = !ingredients.length && !meals.length;
+    const nothing = !ingredients.length && !meals.length && !basics.length;
     const hint = q ? `No “${q}” in your foods yet.` : 'Your food list is empty. Search Open Food Facts or create a food.';
     local.replaceChildren(
       ...section('Meals', meals.map((meal) => mealItem(meal, onPickMeal))),
       ...section(heading, ingredients.map((ingredient) => ingredientItem(ingredient, onPickIngredient))),
+      ...section('Basic foods · NEVO', basics.map((food) => referenceItem(food, onPickReference))),
       ...(nothing ? [h('p', { class: 'muted', style: { margin: '14px 4px 0' } }, hint)] : []),
     );
     if (q !== offQuery) {

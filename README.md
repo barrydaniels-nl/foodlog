@@ -15,6 +15,9 @@ laptop over your Tailscale tailnet.
   and future plans; past days stay as they were.
 - **Lookup:** search [Open Food Facts](https://world.openfoodfacts.org) by name
   (Dutch products first, configurable) or scan a barcode with the phone camera.
+- **Basic foods:** fresh foods like eggs or paksoi come from NEVO, the Dutch
+  food composition table (see below). Pick one and it's added with its
+  official values, no typing needed.
 - **Saved meals:** build meals like "Chicken rice bowl" once and add them at
   ×0.5 to ×2.
 - **Backups:** export everything as JSON and restore it later.
@@ -98,6 +101,24 @@ docker compose up -d --build
 ```
 
 Your data lives in the `foodlog-data` volume and survives rebuilds.
+
+## Basic foods (NEVO)
+
+[NEVO](https://www.rivm.nl/en/dutch-food-composition-database) is RIVM's free
+table of about 2,300 everyday foods with Dutch and English names. Its terms
+don't allow redistributing the file, so you load it yourself once:
+
+1. Request the dataset at
+   [RIVM](https://www.rivm.nl/en/dutch-food-composition-database/nevo-online-request-dataset)
+   and accept their conditions.
+2. In the app: **Settings → Basic foods (NEVO) → Upload NEVO file** and choose
+   `NEVO2025_v9.0.csv` (the main file, not `_Details` or `_Nutrients`).
+
+The foods then appear as **"Basic foods · NEVO"** when you search. Picking one
+copies it into your foods with the values unchanged, as RIVM's terms require.
+If you edit its values it becomes your own food and loses the NEVO label.
+RIVM's required credit line is shown at the bottom of every page. When RIVM
+publishes a new version, upload it the same way.
 
 ## Backups
 
