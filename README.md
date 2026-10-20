@@ -52,7 +52,18 @@ docker compose up -d --build
 ```
 
 The app now listens on `127.0.0.1:8080` on the Pi, so it is deliberately
-unreachable from the rest of your home network. Tailscale Serve makes it
+unreachable from the rest of your home network.
+
+If port 8080 is already in use ("port is already allocated"), choose another
+one in a `.env` file next to `docker-compose.yml`. Compose reads it
+automatically, and updates won't overwrite it:
+
+```bash
+echo "FOODLOG_PORT=8087" > .env
+docker compose up -d
+```
+
+Then use that port in the `tailscale serve` command below. Tailscale Serve makes it
 available on your tailnet.
 
 ### Put it on your tailnet with HTTPS
@@ -115,14 +126,12 @@ Your data lives in the `foodlog-data` volume and survives rebuilds.
 
 ## Configuration
 
-| Variable  | Default            | Purpose                                                    |
-| --------- | ------------------ | ---------------------------------------------------------- |
-| `PORT`    | `8080`             | Port inside the container                                  |
-| `DB_PATH` | `/data/foodlog.db` | SQLite file (on the `foodlog-data` volume)                 |
-| `TZ`      | `Europe/Amsterdam` | Decides what "today" means when ingredient edits update plans |
-
-Change the published port in `docker-compose.yml` (`"127.0.0.1:8080:8080"`) if
-8080 is taken on the Pi, and point `tailscale serve` at the new port.
+| Variable       | Default            | Purpose                                                    |
+| -------------- | ------------------ | ---------------------------------------------------------- |
+| `FOODLOG_PORT` | `8080`             | Host port (on 127.0.0.1) in `.env`; point `tailscale serve` at it |
+| `PORT`         | `8080`             | Port inside the container                                  |
+| `DB_PATH`      | `/data/foodlog.db` | SQLite file (on the `foodlog-data` volume)                 |
+| `TZ`           | `Europe/Amsterdam` | Decides what "today" means when ingredient edits update plans |
 
 ## Development
 

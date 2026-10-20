@@ -6,7 +6,8 @@ services:
     image: foodlog:latest
     ports:
       # Localhost only: Tailscale Serve is the way in, so the home LAN can't reach it.
-      - "127.0.0.1:8080:8080"
+      # Set FOODLOG_PORT (e.g. in .env) when 8080 is taken on the host.
+      - "127.0.0.1:${FOODLOG_PORT:-8080}:8080"
     environment:
       TZ: Europe/Amsterdam
     volumes:
