@@ -183,7 +183,9 @@ export async function render(container, { date }) {
             )
           : null,
       ),
-      entries.length ? h('div', { class: 'meal-summary' }, macroColumns(totals)) : null,
+      entries.length
+        ? h('div', { class: 'meal-summary' }, h('span', { class: 'meal-summary-label' }, `${SLOT_LABELS[slot]} total`), macroColumns(totals))
+        : null,
       entries.length
         ? h(
             'div',

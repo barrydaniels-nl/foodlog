@@ -1048,12 +1048,31 @@ button.list-item:active {
   .meal-tabs {
     display: none;
   }
+  /* Wide rows: the macro columns move up beside the name, so each row stays one line tall.
+     The meal total uses the same columns so its numbers line up with the foods below. */
   .meal-grid {
+    --row-columns: 40px minmax(0, 1.2fr) minmax(260px, 1fr) 30px;
     margin-top: 18px;
   }
-  .meal-grid .food-cards {
+  .meal-grid .food-card,
+  .meal-grid .meal-summary {
+    grid-template-columns: var(--row-columns);
+    column-gap: 12px;
+    align-items: center;
+  }
+  .meal-grid .meal-summary {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    padding: 10px 13.5px 10px 15.5px;
+  }
+  .meal-grid .food-card .macro-cols,
+  .meal-grid .meal-summary .macro-cols {
+    grid-column: 3;
+    grid-row: 1;
+    margin-top: 0;
+  }
+  .meal-grid .meal-summary-label {
+    display: block;
+    grid-column: 1 / 3;
   }
 }
 .meal-card {
@@ -1088,6 +1107,13 @@ button.list-item:active {
 }
 .meal-summary .macro-cols {
   margin-top: 0;
+}
+/* Only shown on desktop, where the totals sit in a row like the foods. */
+.meal-summary-label {
+  display: none;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--muted);
 }
 
 /* Food cards with flame kcal line and macro columns (reference style). */
@@ -1339,11 +1365,6 @@ button.list-item:active {
   display: grid;
   gap: 10px;
 }
-@media (min-width: 900px) {
-  .meal-list {
-    grid-template-columns: 1fr 1fr;
-  }
-}
 .meal-tile {
   display: block;
   width: 100%;
@@ -1376,6 +1397,23 @@ button.list-item:active {
   color: var(--muted);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+@media (min-width: 900px) {
+  .meal-tile {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+    column-gap: 24px;
+    align-items: center;
+  }
+  .meal-tile p {
+    grid-column: 1;
+    margin-left: 52px;
+  }
+  .meal-tile .macro-cols {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    margin-top: 0;
+  }
 }
 .toolbar {
   display: flex;
