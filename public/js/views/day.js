@@ -111,7 +111,14 @@ export async function render(container, { date }) {
         'div',
         { class: 'meal-head' },
         h('h2', { class: 'meal-name' }, SLOT_LABELS[slot]),
-        entries.length ? h('span', { class: 'meal-kcal' }, `${fmt(totals.kcal)} kcal`) : null,
+        entries.length
+          ? h(
+              'span',
+              { class: 'meal-totals' },
+              h('span', { class: 'meal-kcal' }, `${fmt(totals.kcal)} kcal`),
+              h('span', { class: 'meal-protein' }, `${fmt(totals.protein, 1)} g protein`),
+            )
+          : null,
         entries.length
           ? h(
               'button',
@@ -126,7 +133,8 @@ export async function render(container, { date }) {
               'button',
               { class: 'entry', type: 'button', onclick: () => openEntry(entry) },
               h('span', { class: 'entry-name' }, entry.name, h('span', { class: 'entry-grams' }, ` · ${fmt(entry.grams, 1)} g`)),
-              h('span', { class: 'entry-kcal' }, fmt(entry.nutrients.kcal)),
+              h('span', { class: 'entry-protein', title: 'Protein' }, `${fmt(entry.nutrients.protein, 1)} g`),
+              h('span', { class: 'entry-kcal', title: 'Calories' }, fmt(entry.nutrients.kcal)),
             ),
           )
         : h('p', { class: 'meal-empty' }, 'Nothing planned yet'),

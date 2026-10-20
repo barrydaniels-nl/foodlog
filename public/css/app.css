@@ -975,10 +975,21 @@ button.list-item:active {
   font-size: 16px;
   font-weight: 700;
 }
+.meal-totals {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+}
 .meal-kcal {
   font-size: 14px;
   font-weight: 650;
   color: var(--green);
+}
+.meal-protein {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--indigo);
 }
 .entry {
   display: flex;
@@ -1006,6 +1017,13 @@ button.list-item:active {
 }
 .entry-grams {
   color: var(--muted);
+}
+.entry-protein {
+  flex: none;
+  min-width: 46px;
+  text-align: right;
+  color: var(--indigo);
+  font-weight: 600;
 }
 .entry-kcal {
   flex: none;
