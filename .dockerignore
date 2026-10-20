@@ -1,0 +1,8 @@
+node_modules
+data
+.git
+.superpowers
+docs
+*.db
+*.db-*
+.DS_Store
