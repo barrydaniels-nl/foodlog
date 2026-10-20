@@ -28,7 +28,11 @@ export function h(tag, attrs, ...children) {
     } else if (key === 'class') {
       element.setAttribute('class', Array.isArray(value) ? value.filter(Boolean).join(' ') : value);
     } else if (key === 'style' && typeof value === 'object') {
-      Object.assign(element.style, value);
+      for (const [name, styleValue] of Object.entries(value)) {
+        // Custom properties (--x) are ignored by plain assignment; they need setProperty.
+        if (name.startsWith('--')) element.style.setProperty(name, String(styleValue));
+        else element.style[name] = styleValue;
+      }
     } else if (key === 'dataset') {
       Object.assign(element.dataset, value);
     } else if (!isSvg && ['value', 'checked', 'disabled', 'selected'].includes(key)) {

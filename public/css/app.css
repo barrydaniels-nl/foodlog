@@ -947,16 +947,113 @@ button.list-item:active {
 .today-pill {
   margin-left: 4px;
 }
+/* Big sliding meal tabs (phone). Desktop hides them and stacks every meal. */
+.meal-tabs {
+  position: sticky;
+  z-index: 10;
+  top: calc(8px + var(--safe-top));
+  display: grid;
+  grid-template-columns: repeat(var(--count), 1fr);
+  margin: 18px -4px 12px;
+  padding: 5px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: saturate(1.4) blur(16px);
+  -webkit-backdrop-filter: saturate(1.4) blur(16px);
+  box-shadow:
+    0 1px 0 rgba(29, 42, 34, 0.04),
+    0 10px 28px rgba(30, 60, 40, 0.1);
+}
+.meal-tabs-indicator {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: 5px;
+  width: calc((100% - 10px) / var(--count));
+  border-radius: 19px;
+  background: linear-gradient(160deg, #4cae6d, var(--green-strong));
+  box-shadow: 0 8px 18px rgba(63, 156, 95, 0.38);
+  transform: translateX(calc(var(--index, 0) * 100%));
+  transition: transform 0.42s cubic-bezier(0.3, 1.35, 0.5, 1);
+}
+.meal-tab {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 72px;
+  padding: 8px 2px;
+  border: none;
+  border-radius: 19px;
+  background: none;
+  color: var(--muted);
+  transition: color 0.25s;
+}
+.meal-tab[aria-selected='true'] {
+  color: #fff;
+}
+.meal-tab-emoji {
+  font-size: 22px;
+  line-height: 1.1;
+  transition: transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.meal-tab[aria-selected='true'] .meal-tab-emoji {
+  transform: scale(1.18) translateY(-1px);
+}
+.meal-tab-label {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.meal-tab-kcal {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.75;
+}
 .meal-grid {
   display: grid;
-  gap: 10px;
-  margin-top: 14px;
+  gap: 14px;
+}
+.meal-card.enter-right {
+  animation: slide-in-right 0.38s var(--ease);
+}
+.meal-card.enter-left {
+  animation: slide-in-left 0.38s var(--ease);
+}
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+}
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
+}
+@media (max-width: 899px) {
+  .meal-card:not(.is-active) {
+    display: none;
+  }
 }
 @media (min-width: 900px) {
+  .meal-tabs {
+    display: none;
+  }
   .meal-grid {
+    margin-top: 18px;
+  }
+  .meal-grid .food-cards {
+    display: grid;
     grid-template-columns: 1fr 1fr;
-    align-items: start;
-    gap: 14px;
   }
 }
 .meal-card {
@@ -972,10 +1069,16 @@ button.list-item:active {
   min-height: 36px;
 }
 .meal-name {
+  display: flex;
   flex: 1;
+  align-items: center;
+  gap: 8px;
   margin: 0;
   font-size: 16px;
   font-weight: 700;
+}
+.meal-emoji {
+  font-size: 18px;
 }
 .meal-summary {
   margin: 2px 8px 12px 0;
@@ -1110,9 +1213,24 @@ button.list-item:active {
   color: var(--muted);
 }
 .meal-empty {
-  margin: 2px 0 4px;
-  font-size: 13px;
-  color: var(--faint);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 4px 8px 6px 0;
+  padding: 18px 12px 16px;
+  border: 1.5px dashed #d9e3db;
+  border-radius: 16px;
+  text-align: center;
+}
+.meal-empty-emoji {
+  font-size: 34px;
+  line-height: 1;
+  filter: saturate(0.85);
+}
+.meal-empty p {
+  margin: 8px 0 12px;
+  font-size: 14px;
+  color: var(--muted);
 }
 .meal-add {
   display: inline-flex;

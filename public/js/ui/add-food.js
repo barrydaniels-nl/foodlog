@@ -164,7 +164,8 @@ export function openFoodPicker({ title, includeMeals = false, header, confirmLab
 
 /**
  * Adds a food or saved meal to one meal slot of a day.
- * @param {{date: string, slot: string, onDay: (day: object) => void}} options
+ * @param {{date: string, slot: string, onDay: (day: object, slot: string) => void}} options
+ *   `onDay` also receives the meal slot the food went into
  */
 export function openAddFood({ date, slot, onDay }) {
   let current = slot;
@@ -182,11 +183,11 @@ export function openAddFood({ date, slot, onDay }) {
     ),
     confirmLabel: () => `Add to ${label()}`,
     onAddIngredient: async (ingredient, grams) => {
-      onDay(await api.post(`/api/days/${date}/entries`, { slot: current, ingredientId: ingredient.id, grams }));
+      onDay(await api.post(`/api/days/${date}/entries`, { slot: current, ingredientId: ingredient.id, grams }), current);
       toast(`Added ${ingredient.name} to ${label()}`);
     },
     onAddMeal: async (meal, scale) => {
-      onDay(await api.post(`/api/days/${date}/meals`, { slot: current, mealId: meal.id, scale }));
+      onDay(await api.post(`/api/days/${date}/meals`, { slot: current, mealId: meal.id, scale }), current);
       toast(`Added ${meal.name} to ${label()}`);
     },
   });

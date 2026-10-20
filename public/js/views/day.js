@@ -1,6 +1,6 @@
 /** The day planner: target rings plus Breakfast / Lunch / Dinner / Snacks. */
 import { api } from '../api.js';
-import { MEAL_SLOTS, SLOT_LABELS } from '../shared/constants.js';
+import { MEAL_SLOTS, MealSlot, SLOT_LABELS } from '../shared/constants.js';
 import { addDays, formatDayTitle, isIsoDate, toIsoDate } from '../shared/dates.js';
 import { h, fmt, guarded } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
@@ -13,6 +13,7 @@ import { foodAvatar, kcalLine, macroColumns } from '../ui/macros.js';
 
 const SWIPE_MIN_X = 60;
 const SWIPE_MAX_Y = 40;
+const SLOT_EMOJI = { breakfast: '🥣', lunch: '🥗', dinner: '🍲', snacks: '🍎' };
 
 /**
  * Picks the meal you are most likely planning right now.
@@ -38,19 +39,26 @@ function goToDate(date) {
 export async function render(container, { date }) {
   const today = toIsoDate(new Date());
   let day = await api.get(`/api/days/${date}`);
+  // Phone layout shows one meal at a time; start on the one you're likely planning.
+  let activeSlot = date === today ? slotForTime(new Date()) : MealSlot.BREAKFAST;
+  let tabs = null;
+  let cards = {};
 
   const addNow = () => openAddFood({ date, slot: slotForTime(new Date()), onDay: update });
   const fab = h('button', { class: 'fab', type: 'button', 'aria-label': 'Add food', onclick: addNow }, icon('plus', 28));
   const content = h('div');
   container.replaceChildren(content, fab);
 
-  function update(newDay) {
+  /** @param {object} newDay @param {string} [slot] switch to this meal (e.g. where food was just added) */
+  function update(newDay, slot) {
     day = newDay;
+    if (slot) activeSlot = slot;
     draw(false);
   }
 
   function draw(animate = true) {
     content.replaceChildren(header(), summary(), meals(animate));
+    syncTabs();
   }
 
   function header() {
@@ -96,22 +104,76 @@ export async function render(container, { date }) {
   }
 
   function meals(animate) {
+    cards = Object.fromEntries(MEAL_SLOTS.map((slot, i) => [slot, mealCard(slot, i)]));
+    tabs = mealTabs();
+    return h('div', {}, tabs, h('div', { class: ['meal-grid', animate && 'stagger'] }, Object.values(cards)));
+  }
+
+  /** Big sliding tab bar (phone only; desktop shows every meal). */
+  function mealTabs() {
     return h(
       'div',
-      { class: ['meal-grid', animate && 'stagger'] },
-      MEAL_SLOTS.map((slot, i) => mealCard(slot, i)),
+      { class: 'meal-tabs', role: 'tablist', 'aria-label': 'Meals', style: { '--count': MEAL_SLOTS.length } },
+      h('span', { class: 'meal-tabs-indicator', 'aria-hidden': 'true' }),
+      MEAL_SLOTS.map((slot) => {
+        const { entries, totals } = day.slots[slot];
+        return h(
+          'button',
+          {
+            class: 'meal-tab',
+            type: 'button',
+            role: 'tab',
+            id: `meal-tab-${slot}`,
+            'aria-controls': `meal-${slot}`,
+            dataset: { slot },
+            onclick: () => selectSlot(slot),
+          },
+          h('span', { class: 'meal-tab-emoji', 'aria-hidden': 'true' }, SLOT_EMOJI[slot]),
+          h('span', { class: 'meal-tab-label' }, SLOT_LABELS[slot]),
+          h('span', { class: 'meal-tab-kcal' }, entries.length ? `${fmt(totals.kcal)} kcal` : '—'),
+        );
+      }),
     );
+  }
+
+  function syncTabs() {
+    const index = MEAL_SLOTS.indexOf(activeSlot);
+    tabs.style.setProperty('--index', index);
+    for (const tab of tabs.querySelectorAll('[role="tab"]')) {
+      const selected = tab.dataset.slot === activeSlot;
+      tab.setAttribute('aria-selected', String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+    }
+    for (const [slot, card] of Object.entries(cards)) card.classList.toggle('is-active', slot === activeSlot);
+  }
+
+  function selectSlot(slot) {
+    if (slot === activeSlot) return;
+    const direction = MEAL_SLOTS.indexOf(slot) > MEAL_SLOTS.indexOf(activeSlot) ? 'enter-right' : 'enter-left';
+    activeSlot = slot;
+    syncTabs();
+    const card = cards[slot];
+    card.classList.remove('enter-right', 'enter-left');
+    void card.offsetWidth; // restart the slide-in animation
+    card.classList.add(direction);
   }
 
   function mealCard(slot, index) {
     const { entries, totals } = day.slots[slot];
+    const addHere = () => openAddFood({ date, slot, onDay: update });
     return h(
       'section',
-      { class: 'meal-card', style: { '--i': index }, 'aria-label': SLOT_LABELS[slot] },
+      {
+        class: 'meal-card',
+        id: `meal-${slot}`,
+        role: 'tabpanel',
+        'aria-labelledby': `meal-tab-${slot}`,
+        style: { '--i': index },
+      },
       h(
         'div',
         { class: 'meal-head' },
-        h('h2', { class: 'meal-name' }, SLOT_LABELS[slot]),
+        h('h2', { class: 'meal-name' }, h('span', { class: 'meal-emoji', 'aria-hidden': 'true' }, SLOT_EMOJI[slot]), SLOT_LABELS[slot]),
         entries.length ? kcalLine(totals.kcal) : null,
         entries.length
           ? h(
@@ -142,13 +204,14 @@ export async function render(container, { date }) {
               ),
             ),
           )
-        : h('p', { class: 'meal-empty' }, 'Nothing planned yet'),
-      h(
-        'button',
-        { class: 'meal-add', type: 'button', onclick: () => openAddFood({ date, slot, onDay: update }) },
-        icon('plus', 16),
-        'Add food',
-      ),
+        : h(
+            'div',
+            { class: 'meal-empty' },
+            h('span', { class: 'meal-empty-emoji', 'aria-hidden': 'true' }, SLOT_EMOJI[slot]),
+            h('p', {}, `Nothing planned for ${SLOT_LABELS[slot].toLowerCase()} yet`),
+            h('button', { class: 'btn btn-soft btn-sm', type: 'button', onclick: addHere }, icon('plus', 16), `Add ${SLOT_LABELS[slot].toLowerCase()}`),
+          ),
+      entries.length ? h('button', { class: 'meal-add', type: 'button', onclick: addHere }, icon('plus', 16), 'Add food') : null,
     );
   }
 
@@ -296,7 +359,17 @@ export async function render(container, { date }) {
     if (Math.abs(dx) > SWIPE_MIN_X && Math.abs(dy) < SWIPE_MAX_Y) goToDate(addDays(date, dx < 0 ? 1 : -1));
   });
   function onKey(event) {
-    if (document.querySelector('.sheet-backdrop') || event.target.closest('input, textarea, select')) return;
+    const target = event.target instanceof Element ? event.target : document.body;
+    if (document.querySelector('.sheet-backdrop') || target.closest('input, textarea, select')) return;
+    // Arrow keys on a focused meal tab move between meals instead of days.
+    if (target.closest('.meal-tabs') && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+      const next = MEAL_SLOTS.indexOf(activeSlot) + (event.key === 'ArrowRight' ? 1 : -1);
+      if (next >= 0 && next < MEAL_SLOTS.length) {
+        selectSlot(MEAL_SLOTS[next]);
+        tabs.querySelector(`[data-slot="${activeSlot}"]`).focus();
+      }
+      return;
+    }
     if (event.key === 'ArrowLeft') goToDate(addDays(date, -1));
     if (event.key === 'ArrowRight') goToDate(addDays(date, 1));
   }
