@@ -26,7 +26,7 @@ const client = (fetchImpl, options = {}) => createOpenAiClient({ apiKey: 'sk-tes
 
 beforeEach((t) => t.mock.method(console, 'error', () => {}));
 
-test('sends model, instructions and a strict json_schema format with a bearer key', async () => {
+test('sends model, instructions, low reasoning effort and a strict json_schema format with a bearer key', async () => {
   const { impl, calls } = fakeFetch(() => ({ body: completed('{}') }));
   await client(impl).generateJson(REQUEST);
   const [call] = calls;
@@ -36,6 +36,7 @@ test('sends model, instructions and a strict json_schema format with a bearer ke
   assert.equal(call.body.model, 'test-model');
   assert.equal(call.body.instructions, 'Be brief.');
   assert.equal(call.body.input, '{"x":1}');
+  assert.deepEqual(call.body.reasoning, { effort: 'low' });
   assert.deepEqual(call.body.text.format, { type: 'json_schema', name: 'thing', schema: { type: 'object' }, strict: true });
   assert.ok(call.init.signal instanceof AbortSignal);
 });

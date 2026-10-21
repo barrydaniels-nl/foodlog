@@ -178,7 +178,7 @@ Nothing else is sent and nothing is stored.
 | `DB_PATH`      | `/data/foodlog.db` | SQLite file (on the `foodlog-data` volume)                 |
 | `TZ`           | `Europe/Amsterdam` | Decides what "today" means when ingredient edits update plans |
 | `OPENAI_API_KEY` | _(unset)_        | In `.env`; turns on the day analysis                       |
-| `OPENAI_MODEL` | `gpt-5-mini`       | In `.env`; OpenAI model for the day analysis               |
+| `OPENAI_MODEL` | `gpt-6-luna`       | In `.env`; OpenAI reasoning model (GPT-5 or newer) for the day analysis |
 
 ## Development
 
