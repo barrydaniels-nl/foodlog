@@ -22,6 +22,8 @@ laptop over your Tailscale tailnet.
   ×0.5 to ×2.
 - **Day analysis (AI, optional):** an OpenAI-written review of the day you're
   planning, with tips to get more protein and, when needed, fewer calories.
+- **Diet export for an LLM:** a read-only Markdown page of what you ate, to
+  paste as a link into a chat with an AI that keeps an eye on your health.
 - **Backups:** export everything as JSON and restore it later.
 
 No accounts and no login: it's a single-user app, and your tailnet decides who
@@ -144,7 +146,26 @@ values, your kcal and protein targets, up to 300 of your foods (name, brand and
 values per 100 g, most recently used first) and, on today, the current time.
 Nothing else is sent and nothing is stored.
 
-## Backups
+## Diet export for an LLM
+
+`GET /api/diet?days=30` returns a Markdown food diary that a browsing AI (for
+example GPT in ChatGPT) can read when you paste the link into a chat:
+
+```
+https://<pi-name>.<tailnet-name>.ts.net/api/diet?days=90
+```
+
+- `days` is optional: 30 by default, 1 to 365. The diary ends today; future
+  plans are left out.
+- It lists each day newest first with every food, its grams and values, the
+  day's totals against your targets, and a summary (averages, days over the
+  kcal target, days under the protein target). Days without food say
+  "Nothing logged" so they aren't read as fasting.
+- Foodlog stores plans, so past days are taken as eaten and today is marked
+  as possibly incomplete. Targets are your current settings.
+
+The endpoint has no password: anyone who can reach the app can read it.
+
 
 - **In the app (easiest):** Settings → Export downloads a JSON file. Settings →
   Import replaces everything with a backup. Before replacing anything, the server
@@ -203,6 +224,7 @@ server/              API: router, SQLite schema, one module per domain
   off.js             Open Food Facts client
   openai.js          OpenAI client (structured JSON output)
   analysis.js        AI day analysis: prompt, parsing, routes
+  diet-export.js     read-only Markdown diet diary for an LLM
   backup.js          export / import
 public/              frontend (no build step)
   js/shared/         nutrition maths, dates, constants — used by server and browser
