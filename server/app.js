@@ -10,6 +10,7 @@ import { createDaysRepo, registerDayRoutes } from './days.js';
 import { createBackup } from './backup.js';
 import { createReferenceRepo, registerReferenceRoutes } from './nevo.js';
 import { registerAnalysisRoutes } from './analysis.js';
+import { registerDietExportRoutes } from './diet-export.js';
 
 const NODE_MODULES = fileURLToPath(new URL('../node_modules/', import.meta.url));
 
@@ -47,6 +48,7 @@ export function createApp({ db, offClient, openAi = null, today, now = () => new
   createBackup(db, { settings, today, backupDir }).registerRoutes(router);
   if (offClient) registerOffRoutes(router, { offClient, settings });
   registerAnalysisRoutes(router, { openAi, days, ingredients, today, now });
+  registerDietExportRoutes(router, { days, today });
 
   return async function handleRequest(req, res) {
     try {
