@@ -9,6 +9,7 @@ import { createMealsRepo, registerMealRoutes } from './meals.js';
 import { createDaysRepo, registerDayRoutes } from './days.js';
 import { createBackup } from './backup.js';
 import { createReferenceRepo, registerReferenceRoutes } from './nevo.js';
+import { registerAnalysisRoutes } from './analysis.js';
 
 const NODE_MODULES = fileURLToPath(new URL('../node_modules/', import.meta.url));
 
@@ -22,13 +23,15 @@ const VENDOR_MOUNTS = {
  * @param {{
  *   db: import('node:sqlite').DatabaseSync,
  *   offClient: object|null,
+ *   openAi?: {generateJson: (request: object) => Promise<any>}|null,
  *   today: () => string,
+ *   now?: () => Date,
  *   publicDir: string,
  *   backupDir: string,
  * }} deps
  * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => Promise<void>}
  */
-export function createApp({ db, offClient, today, publicDir, backupDir }) {
+export function createApp({ db, offClient, openAi = null, today, now = () => new Date(), publicDir, backupDir }) {
   const settings = createSettingsRepo(db);
   const ingredients = createIngredientsRepo(db, { today });
   const meals = createMealsRepo(db);
@@ -43,6 +46,7 @@ export function createApp({ db, offClient, today, publicDir, backupDir }) {
   registerReferenceRoutes(router, { reference: createReferenceRepo(db), ingredients });
   createBackup(db, { settings, today, backupDir }).registerRoutes(router);
   if (offClient) registerOffRoutes(router, { offClient, settings });
+  registerAnalysisRoutes(router, { openAi, days, ingredients, today, now });
 
   return async function handleRequest(req, res) {
     try {

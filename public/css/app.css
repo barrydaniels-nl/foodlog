@@ -893,6 +893,53 @@ button.list-item:active {
   color: var(--text);
   font-weight: 700;
 }
+.chip-ai {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px auto 2px;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--indigo-soft);
+  color: var(--indigo);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.chip-ai:hover {
+  background: #dcdef4;
+}
+.chip-ai:active {
+  transform: scale(0.97);
+}
+
+/* ---------- Day analysis sheet ---------- */
+
+.analysis-section .section-label {
+  margin-top: 4px;
+}
+.analysis-section + .analysis-section .section-label {
+  margin-top: 18px;
+}
+.analysis-summary,
+.analysis-error {
+  margin: 0 4px;
+}
+.analysis-error {
+  color: var(--muted);
+}
+.analysis-tips {
+  margin: 0;
+  padding-left: 22px;
+}
+.analysis-tips li + li {
+  margin-top: 6px;
+}
+.analysis-refresh {
+  margin-top: 20px;
+}
 .stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

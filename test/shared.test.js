@@ -10,6 +10,7 @@ import {
 } from '../public/js/shared/nutrition.js';
 import { addDays, isIsoDate, formatDayTitle, toIsoDate } from '../public/js/shared/dates.js';
 import { MEAL_SLOTS, MealSlot, SLOT_LABELS, DEFAULT_SETTINGS } from '../public/js/shared/constants.js';
+import { slotForTime, slotsAhead } from '../public/js/shared/meal-time.js';
 
 test('scaleNutrients scales per-100g values by grams', () => {
   assert.deepEqual(scaleNutrients({ kcal: 380, protein: 13, carbs: 60, fat: 7, fiber: 10 }, 60), {
@@ -104,4 +105,19 @@ test('meal slots are fixed and ordered', () => {
   assert.equal(SLOT_LABELS.breakfast, 'Breakfast');
   assert.ok(Object.isFrozen(MealSlot));
   assert.deepEqual(DEFAULT_SETTINGS, { kcalTarget: 2000, proteinTarget: 120, offCountry: 'nl' });
+});
+
+test('slotForTime keeps the existing meal boundaries', () => {
+  const at = (hh, mm) => new Date(2026, 9, 21, hh, mm);
+  assert.equal(slotForTime(at(10, 29)), 'breakfast');
+  assert.equal(slotForTime(at(10, 30)), 'lunch');
+  assert.equal(slotForTime(at(15, 0)), 'dinner');
+  assert.equal(slotForTime(at(21, 0)), 'snacks');
+});
+
+test('slotsAhead includes the current slot and always snacks', () => {
+  const at = (hh, mm) => new Date(2026, 9, 21, hh, mm);
+  assert.deepEqual(slotsAhead(at(7, 0)), ['breakfast', 'lunch', 'dinner', 'snacks']);
+  assert.deepEqual(slotsAhead(at(14, 0)), ['lunch', 'dinner', 'snacks']);
+  assert.deepEqual(slotsAhead(at(22, 30)), ['snacks']);
 });
