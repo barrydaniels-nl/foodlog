@@ -4,7 +4,9 @@
  */
 
 const RESPONSES_URL = 'https://api.openai.com/v1/responses';
-export const DEFAULT_MODEL = 'gpt-5-mini';
+export const DEFAULT_MODEL = 'gpt-6-luna';
+// Short coaching answers need little reasoning; medium effort ran past 30 s.
+const REASONING_EFFORT = 'low';
 
 /** Any failure talking to OpenAI. The message is for logs, never for users. */
 export class OpenAiError extends Error {}
@@ -12,7 +14,7 @@ export class OpenAiError extends Error {}
 /**
  * @param {{apiKey: string, model: string, fetchImpl?: typeof fetch, timeoutMs?: number}} options
  */
-export function createOpenAiClient({ apiKey, model, fetchImpl = fetch, timeoutMs = 30_000 }) {
+export function createOpenAiClient({ apiKey, model, fetchImpl = fetch, timeoutMs = 60_000 }) {
   /**
    * Logs with context, then returns the error for the caller to throw.
    * Error texts can echo the key (a 401 message, an invalid header value),
@@ -64,6 +66,7 @@ export function createOpenAiClient({ apiKey, model, fetchImpl = fetch, timeoutMs
           model,
           instructions,
           input,
+          reasoning: { effort: REASONING_EFFORT },
           text: { format: { type: 'json_schema', name, schema, strict: true } },
         }),
         signal: AbortSignal.timeout(timeoutMs),

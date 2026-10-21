@@ -94,8 +94,8 @@ The point is fixing a plan while making it, not analysing history.
     too. The current section and every later one count as ahead. **Snacks is
     always ahead.** The prompt says to leave sections that have been eaten
     alone, while still counting them in the totals.
-- **Timeout:** 30 seconds for the OpenAI call (longer than the Open Food Facts
-  client's 8 s, because generation is slower).
+- **Timeout:** 60 seconds for the OpenAI call, with reasoning effort `low`.
+  The default (medium) effort ran past 30 s on a real day.
 - **Structured output.** The model returns JSON with a fixed schema (JSON-schema
   structured output): a `summary` string, a `protein` list and an optional
   `calories` list of short tip strings. The server checks the shape and caps
