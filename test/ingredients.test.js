@@ -1,6 +1,7 @@
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { startTestServer, api } from './helpers.js';
+import { createIngredientsRepo } from '../server/ingredients.js';
 
 let server;
 let client;
@@ -146,4 +147,31 @@ test('recent lists the most recently planned ingredients first, without duplicat
     ['Oats', 'Skyr naturel'],
   );
   assert.ok(!res.body.some((i) => i.id === unused.id));
+});
+
+test('listByRecentUse orders recently planned first, skips archived, respects limit', async () => {
+  const create = async (name) =>
+    (await client.post('/api/ingredients', { name, kcal: 100, protein: 10, carbs: 5, fat: 2 })).body;
+  const oats = await create('Oats');
+  const skyr = await create('Skyr');
+  const rice = await create('Rice');
+  await create('banana');
+  await create('Apple');
+  const gone = await create('Gone');
+  for (const id of [oats.id, skyr.id, oats.id, rice.id, gone.id]) {
+    await client.post('/api/days/2026-10-21/entries', { slot: 'lunch', ingredientId: id, grams: 10 });
+  }
+  await client.del(`/api/ingredients/${gone.id}`);
+  const repo = createIngredientsRepo(server.db, { today: () => '2026-10-21' });
+
+  const all = repo.listByRecentUse(300);
+  assert.deepEqual(
+    all.map((food) => food.name),
+    ['Rice', 'Oats', 'Skyr', 'Apple', 'banana'],
+  );
+  assert.deepEqual(all[0], { name: 'Rice', brand: null, kcal: 100, protein: 10, carbs: 5, fat: 2 });
+  assert.deepEqual(
+    repo.listByRecentUse(2).map((food) => food.name),
+    ['Rice', 'Oats'],
+  );
 });

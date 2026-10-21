@@ -20,6 +20,8 @@ laptop over your Tailscale tailnet.
   official values, no typing needed.
 - **Saved meals:** build meals like "Chicken rice bowl" once and add them at
   ×0.5 to ×2.
+- **Day analysis (AI, optional):** an OpenAI-written review of the day you're
+  planning, with tips to get more protein and, when needed, fewer calories.
 - **Backups:** export everything as JSON and restore it later.
 
 No accounts and no login: it's a single-user app, and your tailnet decides who
@@ -33,6 +35,7 @@ flowchart LR
   ts --> app[Foodlog container :8080]
   app --> db[(SQLite on volume foodlog-data)]
   app -- name search / barcode --> off[Open Food Facts]
+  app -- day analysis --> openai[OpenAI]
 ```
 
 - A small Node 24 server (`node:http` + built-in `node:sqlite`, no runtime npm
@@ -120,6 +123,27 @@ If you edit its values it becomes your own food and loses the NEVO label.
 RIVM's required credit line is shown at the bottom of every page. When RIVM
 publishes a new version, upload it the same way.
 
+## Day analysis (AI)
+
+On today or a future day, **✦ Analyse day** (under the rings) asks OpenAI for a
+short review of the plan: how the day looks, 2–4 ways to get more protein and,
+when the day is or would go over your kcal target, 2–4 ways to cut calories.
+Numbers the AI estimates are marked "≈"; your totals always come from your own
+data. You make any changes yourself.
+
+It is off until you add an OpenAI API key to `.env` next to
+`docker-compose.yml`:
+
+```bash
+echo "OPENAI_API_KEY=sk-..." >> .env
+docker compose up -d
+```
+
+Each analysis sends OpenAI the day's planned foods with their amounts and
+values, your kcal and protein targets, up to 300 of your foods (name, brand and
+values per 100 g, most recently used first) and, on today, the current time.
+Nothing else is sent and nothing is stored.
+
 ## Backups
 
 - **In the app (easiest):** Settings → Export downloads a JSON file. Settings →
@@ -153,6 +177,8 @@ publishes a new version, upload it the same way.
 | `PORT`         | `8080`             | Port inside the container                                  |
 | `DB_PATH`      | `/data/foodlog.db` | SQLite file (on the `foodlog-data` volume)                 |
 | `TZ`           | `Europe/Amsterdam` | Decides what "today" means when ingredient edits update plans |
+| `OPENAI_API_KEY` | _(unset)_        | In `.env`; turns on the day analysis                       |
+| `OPENAI_MODEL` | `gpt-5-mini`       | In `.env`; OpenAI model for the day analysis               |
 
 ## Development
 
@@ -175,6 +201,8 @@ server/              API: router, SQLite schema, one module per domain
   meals.js           saved meals
   days.js            planned days, add meal, copy day
   off.js             Open Food Facts client
+  openai.js          OpenAI client (structured JSON output)
+  analysis.js        AI day analysis: prompt, parsing, routes
   backup.js          export / import
 public/              frontend (no build step)
   js/shared/         nutrition maths, dates, constants — used by server and browser

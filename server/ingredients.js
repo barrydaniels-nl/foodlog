@@ -104,6 +104,15 @@ export function createIngredientsRepo(db, { today }) {
        ORDER BY e.last_entry DESC
        LIMIT ${RECENT_LIMIT}`,
     ),
+    // Compact rows for the AI day analysis: no portions, never-planned foods last.
+    byRecentUse: db.prepare(
+      `SELECT i.name, i.brand, i.kcal, i.protein, i.carbs, i.fat FROM ingredients i
+       LEFT JOIN (SELECT ingredient_id, MAX(id) AS last_entry FROM entries GROUP BY ingredient_id) e
+         ON e.ingredient_id = i.id
+       WHERE i.archived = 0
+       ORDER BY e.last_entry IS NULL, e.last_entry DESC, i.name COLLATE NOCASE
+       LIMIT ?`,
+    ),
     search: db.prepare(
       `SELECT * FROM ingredients
        WHERE (:includeArchived = 1 OR archived = 0)
@@ -224,12 +233,22 @@ export function createIngredientsRepo(db, { today }) {
     return statements.recent.all().map(hydrate);
   }
 
+  /**
+   * @param {number} limit
+   * @returns {Array<{name: string, brand: string|null, kcal: number, protein: number, carbs: number, fat: number}>}
+   *   non-archived foods, most recently planned first
+   */
+  function listByRecentUse(limit) {
+    return statements.byRecentUse.all(limit).map((row) => ({ ...row }));
+  }
+
   return {
     get,
     findByBarcode,
     findByReference,
     list,
     recent,
+    listByRecentUse,
     create,
     update,
     archive: (id) => setArchived(id, true),

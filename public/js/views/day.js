@@ -2,6 +2,7 @@
 import { api } from '../api.js';
 import { MEAL_SLOTS, MealSlot, SLOT_LABELS } from '../shared/constants.js';
 import { addDays, formatDayTitle, isIsoDate, toIsoDate } from '../shared/dates.js';
+import { slotForTime } from '../shared/meal-time.js';
 import { h, fmt, guarded } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
 import { ring } from '../ui/ring.js';
@@ -10,23 +11,11 @@ import { toast, toastError } from '../ui/toast.js';
 import { amountStep } from '../ui/amount-step.js';
 import { openAddFood } from '../ui/add-food.js';
 import { foodAvatar, kcalLine, macroColumns } from '../ui/macros.js';
+import { analysisEnabled, openDayAnalysis } from '../ui/day-analysis.js';
 
 const SWIPE_MIN_X = 60;
 const SWIPE_MAX_Y = 40;
 const SLOT_EMOJI = { breakfast: '🥣', lunch: '🥗', dinner: '🍲', snacks: '🍎' };
-
-/**
- * Picks the meal you are most likely planning right now.
- * @param {Date} now
- * @returns {string}
- */
-function slotForTime(now) {
-  const minutes = now.getHours() * 60 + now.getMinutes();
-  if (minutes < 10 * 60 + 30) return 'breakfast';
-  if (minutes < 15 * 60) return 'lunch';
-  if (minutes < 21 * 60) return 'dinner';
-  return 'snacks';
-}
 
 function goToDate(date) {
   location.hash = `#/day/${date}`;
@@ -38,7 +27,8 @@ function goToDate(date) {
  */
 export async function render(container, { date }) {
   const today = toIsoDate(new Date());
-  let day = await api.get(`/api/days/${date}`);
+  const [loadedDay, canAnalyse] = await Promise.all([api.get(`/api/days/${date}`), analysisEnabled()]);
+  let day = loadedDay;
   // Phone layout shows one meal at a time; start on the one you're likely planning.
   let activeSlot = date === today ? slotForTime(new Date()) : MealSlot.BREAKFAST;
   let tabs = null;
@@ -100,7 +90,15 @@ export async function render(container, { date }) {
         h('div', {}, 'Fat ', h('b', {}, `${fmt(totals.fat)} g`)),
         h('div', {}, 'Fibre ', h('b', {}, `${fmt(totals.fiber)} g`)),
       ),
+      showAnalyse()
+        ? h('button', { class: 'chip-ai', type: 'button', onclick: () => openDayAnalysis({ date }) }, '✦ Analyse day')
+        : null,
     );
+  }
+
+  /** Today and future days with something planned, when the server has a key. */
+  function showAnalyse() {
+    return canAnalyse && date >= today && MEAL_SLOTS.some((slot) => day.slots[slot].entries.length > 0);
   }
 
   function meals(animate) {
