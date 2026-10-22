@@ -1564,3 +1564,29 @@ button.list-item:active {
 .about a {
   color: var(--green-strong);
 }
+
+/* ---------- Login ---------- */
+
+.login {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: calc(24px + var(--safe-top)) 20px calc(24px + var(--safe-bottom));
+}
+.login-card {
+  width: 100%;
+  max-width: 360px;
+  padding: 28px 24px 24px;
+  text-align: center;
+}
+.login-card .field {
+  text-align: left;
+}
+.login-mark {
+  display: block;
+  margin: 0 auto 14px;
+  border-radius: 14px;
+}
+.login-sub {
+  margin-bottom: 20px;
+}

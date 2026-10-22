@@ -26,8 +26,8 @@ laptop over your Tailscale tailnet.
   paste as a link into a chat with an AI that keeps an eye on your health.
 - **Backups:** export everything as JSON and restore it later.
 
-No accounts and no login: it's a single-user app, and your tailnet decides who
-can reach it.
+It's a single-user app with no accounts: your tailnet decides who can reach
+it, and an optional password (see [Password](#password)) adds a login screen.
 
 ## How it works
 
@@ -164,7 +164,32 @@ https://<pi-name>.<tailnet-name>.ts.net/api/diet?days=90
 - Foodlog stores plans, so past days are taken as eaten and today is marked
   as possibly incomplete. Targets are your current settings.
 
-The endpoint has no password: anyone who can reach the app can read it.
+Without a password set, anyone who can reach the app can read it. With
+`APP_PASSWORD` set, a chat AI can't log in, so give the link its own token
+(see [Password](#password)) and add it to the URL:
+
+```
+https://<pi-name>.<tailnet-name>.ts.net/api/diet?days=90&token=<DIET_TOKEN>
+```
+
+The token only opens this read-only page, never the rest of the app.
+
+## Password
+
+Set `APP_PASSWORD` in `.env` to put a login screen in front of the app and
+its API:
+
+```bash
+echo "APP_PASSWORD=choose-a-long-password" >> .env
+echo "DIET_TOKEN=$(openssl rand -hex 24)" >> .env   # optional, for the diet link
+docker compose up -d
+```
+
+- Each device logs in once and stays logged in (a cookie that lasts 400 days).
+- Changing `APP_PASSWORD` logs every device out.
+- `/api/health` stays open for the Docker health check.
+- Leave `APP_PASSWORD` unset to keep the app open, as before. `DIET_TOKEN`
+  only matters when a password is set.
 
 
 - **In the app (easiest):** Settings → Export downloads a JSON file. Settings →
@@ -200,6 +225,8 @@ The endpoint has no password: anyone who can reach the app can read it.
 | `TZ`           | `Europe/Amsterdam` | Decides what "today" means when ingredient edits update plans |
 | `OPENAI_API_KEY` | _(unset)_        | In `.env`; turns on the day analysis                       |
 | `OPENAI_MODEL` | `gpt-6-luna`       | In `.env`; OpenAI reasoning model (GPT-5 or newer) for the day analysis |
+| `APP_PASSWORD` | _(unset)_          | In `.env`; turns on the login screen                       |
+| `DIET_TOKEN`   | _(unset)_          | In `.env`; lets `/api/diet?token=…` skip the login screen  |
 
 ## Development
 
@@ -225,6 +252,7 @@ server/              API: router, SQLite schema, one module per domain
   openai.js          OpenAI client (structured JSON output)
   analysis.js        AI day analysis: prompt, parsing, routes
   diet-export.js     read-only Markdown diet diary for an LLM
+  auth.js            optional password gate and login route
   backup.js          export / import
 public/              frontend (no build step)
   js/shared/         nutrition maths, dates, constants — used by server and browser

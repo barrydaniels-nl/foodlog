@@ -13,6 +13,9 @@ services:
       # Day analysis (AI): set these in .env; without a key the feature is off.
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
+      # Password screen: set these in .env; without APP_PASSWORD the app is open.
+      APP_PASSWORD: ${APP_PASSWORD:-}
+      DIET_TOKEN: ${DIET_TOKEN:-}
     volumes:
       - foodlog-data:/data
     restart: unless-stopped

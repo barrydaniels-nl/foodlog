@@ -10,7 +10,7 @@ const PUBLIC_DIR = fileURLToPath(new URL('../public', import.meta.url));
 
 /**
  * Starts the app on a random port with an in-memory database.
- * @param {{today?: string, offClient?: object, openAi?: object|null, now?: () => Date}} [options]
+ * @param {{today?: string, offClient?: object, openAi?: object|null, now?: () => Date, auth?: object|null}} [options]
  * @returns {Promise<{url: string, db: import('node:sqlite').DatabaseSync, backupDir: string, close: () => Promise<void>}>}
  */
 export async function startTestServer({
@@ -18,10 +18,11 @@ export async function startTestServer({
   openAi = null,
   today = '2026-10-21',
   now = () => new Date('2026-10-21T09:00:00'),
+  auth = null,
 } = {}) {
   const db = openDb(':memory:');
   const backupDir = path.join(mkdtempSync(path.join(tmpdir(), 'foodlog-test-')), 'backups');
-  const handler = createApp({ db, offClient, openAi, today: () => today, now, publicDir: PUBLIC_DIR, backupDir });
+  const handler = createApp({ db, offClient, openAi, today: () => today, now, auth, publicDir: PUBLIC_DIR, backupDir });
   const server = createServer(handler);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address();
