@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  averageNutrients,
   scaleNutrients,
   sumNutrients,
   roundNutrients,
@@ -8,7 +9,18 @@ import {
   parseAmount,
   parseNumber,
 } from '../public/js/shared/nutrition.js';
-import { addDays, isIsoDate, formatDayTitle, toIsoDate } from '../public/js/shared/dates.js';
+import {
+  addDays,
+  addMonths,
+  formatDayTitle,
+  formatMonthTitle,
+  formatShortDay,
+  isIsoDate,
+  isIsoMonth,
+  monthDates,
+  toIsoDate,
+  weekdayIndex,
+} from '../public/js/shared/dates.js';
 import { MEAL_SLOTS, MealSlot, SLOT_LABELS, DEFAULT_SETTINGS } from '../public/js/shared/constants.js';
 import { slotForTime, slotsAhead } from '../public/js/shared/meal-time.js';
 
@@ -39,6 +51,13 @@ test('sumNutrients of empty list is all zeros', () => {
 test('sumNutrients adds each nutrient', () => {
   const a = { kcal: 100, protein: 10, carbs: 5, fat: 2, fiber: 1 };
   assert.deepEqual(sumNutrients([a, a]), { kcal: 200, protein: 20, carbs: 10, fat: 4, fiber: 2 });
+});
+
+test('averageNutrients is the per-nutrient mean, zeros for an empty list', () => {
+  const a = { kcal: 100, protein: 10, carbs: 5, fat: 2, fiber: 1 };
+  const b = { kcal: 200, protein: 20, carbs: 10, fat: 4, fiber: 2 };
+  assert.deepEqual(averageNutrients([a, b]), { kcal: 150, protein: 15, carbs: 7.5, fat: 3, fiber: 1.5 });
+  assert.deepEqual(averageNutrients([]), emptyNutrients());
 });
 
 test('parseAmount', () => {
@@ -97,6 +116,48 @@ test('formatDayTitle', () => {
   assert.equal(formatDayTitle('2026-10-22', '2026-10-21').title, 'Tomorrow');
   assert.equal(formatDayTitle('2026-10-20', '2026-10-21').title, 'Yesterday');
   assert.equal(formatDayTitle('2026-10-25', '2026-10-21').title, 'Sunday');
+});
+
+test('isIsoMonth accepts only real YYYY-MM months', () => {
+  const cases = [
+    ['2026-10', true],
+    ['2026-01', true],
+    ['2026-12', true],
+    ['2026-13', false],
+    ['2026-00', false],
+    ['2026-1', false],
+    ['2026-10-01', false],
+    [202610, false],
+  ];
+  for (const [input, expected] of cases) {
+    assert.equal(isIsoMonth(input), expected, `input ${JSON.stringify(input)}`);
+  }
+});
+
+test('addMonths crosses year boundaries and rejects bad months', () => {
+  assert.equal(addMonths('2026-12', 1), '2027-01');
+  assert.equal(addMonths('2026-01', -1), '2025-12');
+  assert.equal(addMonths('2026-10', 0), '2026-10');
+  assert.throws(() => addMonths('2026-13', 1), RangeError);
+});
+
+test('monthDates lists every day, including leap days', () => {
+  const october = monthDates('2026-10');
+  assert.equal(october.length, 31);
+  assert.equal(october[0], '2026-10-01');
+  assert.equal(october.at(-1), '2026-10-31');
+  assert.equal(monthDates('2028-02').length, 29);
+  assert.equal(monthDates('2026-02').length, 28);
+});
+
+test('weekdayIndex is Monday-first', () => {
+  assert.equal(weekdayIndex('2026-10-19'), 0); // Monday
+  assert.equal(weekdayIndex('2026-10-25'), 6); // Sunday
+});
+
+test('month and short-day labels', () => {
+  assert.equal(formatMonthTitle('2026-10'), 'October 2026');
+  assert.equal(formatShortDay('2026-10-21'), 'Wed 21');
 });
 
 test('meal slots are fixed and ordered', () => {

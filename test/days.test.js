@@ -119,3 +119,32 @@ test('unknown ingredient, meal and entry are 404', async () => {
   assert.equal((await client.post('/api/days/2026-10-21/meals', { slot: 'lunch', mealId: 999 })).status, 404);
   assert.equal((await client.patch('/api/entries/999', { grams: 10 })).status, 404);
 });
+
+test('a month lists every day with totals that match the day view', async () => {
+  await addEntry('2026-10-21', { slot: 'breakfast', ingredientId: oats.id, grams: 60 });
+  await addEntry('2026-10-21', { slot: 'lunch', ingredientId: skyr.id, grams: 150 });
+  await addEntry('2026-10-01', { slot: 'dinner', ingredientId: skyr.id, grams: 100 });
+  await addEntry('2026-11-01', { slot: 'dinner', ingredientId: oats.id, grams: 100 }); // next month, left out
+
+  const res = await client.get('/api/months/2026-10');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.month, '2026-10');
+  assert.deepEqual(res.body.targets, { kcal: 2000, protein: 120 });
+  assert.equal(res.body.days.length, 31);
+  assert.equal(res.body.days[0].date, '2026-10-01');
+  assert.equal(res.body.days.at(-1).date, '2026-10-31');
+
+  const byDate = Object.fromEntries(res.body.days.map((day) => [day.date, day]));
+  assert.equal(byDate['2026-10-21'].entryCount, 2);
+  assert.deepEqual(byDate['2026-10-21'].totals, (await client.get('/api/days/2026-10-21')).body.totals);
+  assert.equal(byDate['2026-10-01'].totals.kcal, 63);
+  assert.equal(byDate['2026-10-02'].entryCount, 0);
+  assert.equal(byDate['2026-10-02'].totals.kcal, 0);
+  assert.equal(byDate['2026-10-31'].totals.kcal, 0);
+});
+
+test('invalid month is 400', async () => {
+  for (const month of ['2026-13', '2026-1', '2026-10-01']) {
+    assert.equal((await client.get(`/api/months/${month}`)).status, 400, month);
+  }
+});
