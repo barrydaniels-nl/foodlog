@@ -1,9 +1,10 @@
-/** Planned days: entries per meal slot, saved-meal insertion and copy-day. */
+/** Planned days: entries per meal slot, saved-meal insertion, copy-day and month totals. */
 import { MEAL_SLOTS, NUTRIENT_KEYS } from '../public/js/shared/constants.js';
+import { monthDates } from '../public/js/shared/dates.js';
 import { roundNutrients, scaleNutrients, sumNutrients } from '../public/js/shared/nutrition.js';
 import { HttpError } from './http.js';
 import { transaction } from './db.js';
-import { requireDate, requireId, requireNumber, requireSlot } from './validate.js';
+import { requireDate, requireId, requireMonth, requireNumber, requireSlot } from './validate.js';
 
 /**
  * @typedef {object} Entry
@@ -22,6 +23,16 @@ import { requireDate, requireId, requireNumber, requireSlot } from './validate.j
  * @property {Record<string, {entries: Entry[], totals: Record<string, number>}>} slots every slot present
  * @property {Record<string, number>} totals rounded
  * @property {{kcal: number, protein: number}} targets
+ *
+ * @typedef {object} MonthDay
+ * @property {string} date
+ * @property {number} entryCount 0 when nothing is planned
+ * @property {Record<string, number>} totals rounded
+ *
+ * @typedef {object} Month
+ * @property {string} month YYYY-MM
+ * @property {MonthDay[]} days every date of the month, in order
+ * @property {{kcal: number, protein: number}} targets
  */
 
 const requireGrams = (value) => requireNumber(value, 'grams', { min: 0.1, max: 5000 });
@@ -37,6 +48,7 @@ const requireGrams = (value) => requireNumber(value, 'grams', { min: 0.1, max: 5
 export function createDaysRepo(db, { settings, ingredients, meals }) {
   const statements = {
     forDate: db.prepare('SELECT * FROM entries WHERE date = ? ORDER BY position, id'),
+    forRange: db.prepare('SELECT * FROM entries WHERE date BETWEEN ? AND ?'),
     byId: db.prepare('SELECT * FROM entries WHERE id = ?'),
     nextPosition: db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS next FROM entries WHERE date = ? AND slot = ?'),
     insert: db.prepare(
@@ -63,18 +75,39 @@ export function createDaysRepo(db, { settings, ingredients, meals }) {
     };
   }
 
+  /** Sums before rounding, so a total never drifts from the unrounded entries. */
+  const totalOf = (entries) => roundNutrients(sumNutrients(entries.map((e) => e.nutrients)));
+
+  function targets() {
+    const { kcalTarget, proteinTarget } = settings.get();
+    return { kcal: kcalTarget, protein: proteinTarget };
+  }
+
   /** @returns {Day} */
   function getDay(date) {
     const entries = statements.forDate.all(requireDate(date)).map(toEntry);
     const slots = {};
     for (const slot of MEAL_SLOTS) {
       const inSlot = entries.filter((entry) => entry.slot === slot);
-      slots[slot] = { entries: inSlot, totals: roundNutrients(sumNutrients(inSlot.map((e) => e.nutrients))) };
+      slots[slot] = { entries: inSlot, totals: totalOf(inSlot) };
     }
-    const totals = roundNutrients(sumNutrients(entries.map((e) => e.nutrients)));
+    const totals = totalOf(entries);
     for (const entry of entries) entry.nutrients = roundNutrients(entry.nutrients);
-    const { kcalTarget, proteinTarget } = settings.get();
-    return { date, slots, totals, targets: { kcal: kcalTarget, protein: proteinTarget } };
+    return { date, slots, totals, targets: targets() };
+  }
+
+  /**
+   * Day totals for a whole month in one query; each total equals getDay's.
+   * @returns {Month}
+   */
+  function getMonth(month) {
+    const dates = monthDates(requireMonth(month));
+    const byDate = Map.groupBy(statements.forRange.all(dates[0], dates.at(-1)).map(toEntry), (entry) => entry.date);
+    const days = dates.map((date) => {
+      const entries = byDate.get(date) ?? [];
+      return { date, entryCount: entries.length, totals: totalOf(entries) };
+    });
+    return { month, days, targets: targets() };
   }
 
   /** Snapshots the ingredient's current values into a new entry. */
@@ -152,7 +185,7 @@ export function createDaysRepo(db, { settings, ingredients, meals }) {
     return getDay(day);
   }
 
-  return { getDay, addEntry, updateEntry, removeEntry, addMeal, copyDay };
+  return { getDay, getMonth, addEntry, updateEntry, removeEntry, addMeal, copyDay };
 }
 
 /**
@@ -161,6 +194,7 @@ export function createDaysRepo(db, { settings, ingredients, meals }) {
  */
 export function registerDayRoutes(router, days) {
   router.add('GET', '/api/days/:date', ({ params }) => days.getDay(params.date));
+  router.add('GET', '/api/months/:month', ({ params }) => days.getMonth(params.month));
   router.add('POST', '/api/days/:date/entries', ({ params, body }) => days.addEntry(params.date, body), { status: 201 });
   router.add('POST', '/api/days/:date/meals', ({ params, body }) => days.addMeal(params.date, body), { status: 201 });
   router.add('POST', '/api/days/:date/copy', ({ params, body }) => days.copyDay(params.date, body));

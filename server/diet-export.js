@@ -4,7 +4,7 @@
  */
 import { MEAL_SLOTS, SLOT_LABELS } from '../public/js/shared/constants.js';
 import { addDays, formatDayTitle } from '../public/js/shared/dates.js';
-import { roundNutrients, sumNutrients } from '../public/js/shared/nutrition.js';
+import { averageNutrients, roundNutrients } from '../public/js/shared/nutrition.js';
 import { HttpError } from './http.js';
 import { requireNumber } from './validate.js';
 
@@ -38,8 +38,7 @@ const formatNutrients = (n) => `${n.kcal} kcal · ${formatMacros(n)}`;
 function summaryLines(completeDays, targets) {
   const count = completeDays.length;
   if (count === 0) return ['- No completed days with food logged in this period.'];
-  const totals = sumNutrients(completeDays.map((day) => day.totals));
-  const average = roundNutrients(Object.fromEntries(Object.entries(totals).map(([key, value]) => [key, value / count])));
+  const average = roundNutrients(averageNutrients(completeDays.map((day) => day.totals)));
   const overKcal = completeDays.filter((day) => day.totals.kcal > targets.kcal).length;
   const underProtein = completeDays.filter((day) => day.totals.protein < targets.protein).length;
   return [

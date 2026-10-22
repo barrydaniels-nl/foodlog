@@ -994,6 +994,169 @@ button.list-item:active {
 .today-pill {
   margin-left: 4px;
 }
+/* ---------- Month view ---------- */
+
+/* Phone: one row per day. Desktop: a Monday-first calendar. */
+.month-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  margin: 14px 4px 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.month-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.month-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.month-swatch.over {
+  background: var(--amber);
+}
+.month-swatch.met {
+  background: var(--indigo);
+}
+.month-grid {
+  display: grid;
+  gap: 6px;
+}
+.month-weekday,
+.month-blank {
+  display: none;
+}
+.month-day {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  text-decoration: none;
+  transition:
+    transform 0.12s var(--ease),
+    box-shadow 0.2s;
+}
+.month-day:hover {
+  box-shadow: var(--shadow-lift);
+}
+.month-day:active {
+  transform: scale(0.98);
+}
+.month-day.is-empty {
+  background: transparent;
+  box-shadow: none;
+}
+.month-day.is-future:not(.is-today) {
+  opacity: 0.7;
+}
+.month-day.is-today {
+  box-shadow:
+    inset 0 0 0 2px var(--green),
+    var(--shadow);
+}
+.month-date {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.month-date-weekday {
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.month-date b {
+  font-size: 18px;
+  font-weight: 800;
+}
+.month-nothing {
+  color: var(--faint);
+}
+.month-values {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.month-value {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.month-value b {
+  font-size: 15px;
+  font-weight: 750;
+}
+.month-value span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.month-kcal b {
+  color: var(--green-strong);
+}
+.month-kcal.over b {
+  color: var(--amber);
+}
+.month-protein.met b {
+  color: var(--indigo);
+}
+@media (min-width: 900px) {
+  .month-grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+  .month-weekday {
+    display: block;
+    padding: 0 4px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .month-blank {
+    display: block;
+  }
+  .month-day {
+    grid-template-columns: 1fr;
+    align-content: start;
+    gap: 6px;
+    min-height: 118px;
+    padding: 8px 10px;
+  }
+  .month-day.is-empty {
+    background: rgba(255, 255, 255, 0.45);
+  }
+  .month-date-weekday {
+    display: none;
+  }
+  .month-date b {
+    font-size: 14px;
+  }
+  .month-values {
+    grid-template-columns: 1fr;
+    gap: 1px;
+  }
+  .month-value {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 4px;
+  }
+  .month-value b {
+    order: 1;
+    font-size: 13px;
+  }
+}
+
 /* Big sliding meal tabs (phone). Desktop hides them and stacks every meal. */
 .meal-tabs {
   position: sticky;

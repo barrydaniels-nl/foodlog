@@ -1,6 +1,6 @@
 /** Request-value validators that throw a 400 HttpError naming the field. */
 import { MEAL_SLOTS } from '../public/js/shared/constants.js';
-import { isIsoDate } from '../public/js/shared/dates.js';
+import { isIsoDate, isIsoMonth } from '../public/js/shared/dates.js';
 import { HttpError } from './http.js';
 
 /**
@@ -75,5 +75,14 @@ export function requireSlot(value) {
  */
 export function requireDate(value, field = 'date') {
   if (!isIsoDate(value)) throw new HttpError(400, `${field} must be a date like 2026-10-21`);
+  return value;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {string} a valid YYYY-MM month
+ */
+export function requireMonth(value) {
+  if (!isIsoMonth(value)) throw new HttpError(400, 'month must be a month like 2026-10');
   return value;
 }

@@ -4,12 +4,15 @@ import { hydrateIcons } from './ui/icons.js';
 import { h } from './ui/dom.js';
 import { api } from './api.js';
 import * as dayView from './views/day.js';
+import * as monthView from './views/month.js';
 import * as mealsView from './views/meals.js';
 import * as foodsView from './views/foods.js';
 import * as settingsView from './views/settings.js';
 
 const ROUTES = [
   { pattern: /^#\/day\/(\d{4}-\d{2}-\d{2})$/, nav: 'day', view: dayView, params: (m) => ({ date: m[1] }) },
+  { pattern: /^#\/month\/(\d{4}-\d{2})$/, nav: 'month', view: monthView, params: (m) => ({ month: m[1] }) },
+  { pattern: /^#\/month$/, nav: 'month', view: monthView, params: () => ({}) },
   { pattern: /^#\/meals\/(new|\d+)$/, nav: 'meals', view: mealsView, params: (m) => ({ id: m[1] }) },
   { pattern: /^#\/meals$/, nav: 'meals', view: mealsView, params: () => ({}) },
   { pattern: /^#\/foods$/, nav: 'foods', view: foodsView, params: () => ({}) },

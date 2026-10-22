@@ -33,6 +33,16 @@ export function sumNutrients(list) {
 }
 
 /**
+ * @param {Array<Record<string, number>>} list
+ * @returns {Record<string, number>} unrounded per-nutrient mean, all zeros for an empty list
+ */
+export function averageNutrients(list) {
+  const total = sumNutrients(list);
+  const count = Math.max(list.length, 1);
+  return Object.fromEntries(Object.entries(total).map(([key, value]) => [key, value / count]));
+}
+
+/**
  * Rounds for display: kcal to whole numbers, macros to one decimal.
  * @param {Record<string, number>} nutrients
  * @returns {Record<string, number>}

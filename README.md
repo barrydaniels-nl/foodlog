@@ -10,6 +10,9 @@ laptop over your Tailscale tailnet.
 - **Day planner:** Breakfast, Lunch, Dinner and Snacks, with rings for kcal and
   protein against your targets, plus carbs, fat and fibre totals. Copy a previous day,
   move or resize entries, and save a meal section as a reusable meal.
+- **Month view:** a calendar of the month with kcal, protein, fibre and fat
+  per day, the daily average of completed days, and days over your kcal target
+  or reaching your protein target highlighted. Tap a day to open it.
 - **Your foods:** a personal ingredient database with values per 100 g and
   optional portions (e.g. "1 pot = 150 g"). Editing an ingredient updates today
   and future plans; past days stay as they were.
