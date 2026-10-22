@@ -27,12 +27,13 @@ const VENDOR_MOUNTS = {
  *   openAi?: {generateJson: (request: object) => Promise<any>}|null,
  *   today: () => string,
  *   now?: () => Date,
+ *   auth?: ReturnType<import('./auth.js').createAuth>|null,
  *   publicDir: string,
  *   backupDir: string,
  * }} deps
  * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => Promise<void>}
  */
-export function createApp({ db, offClient, openAi = null, today, now = () => new Date(), publicDir, backupDir }) {
+export function createApp({ db, offClient, openAi = null, today, now = () => new Date(), auth = null, publicDir, backupDir }) {
   const settings = createSettingsRepo(db);
   const ingredients = createIngredientsRepo(db, { today });
   const meals = createMealsRepo(db);
@@ -49,10 +50,12 @@ export function createApp({ db, offClient, openAi = null, today, now = () => new
   if (offClient) registerOffRoutes(router, { offClient, settings });
   registerAnalysisRoutes(router, { openAi, days, ingredients, today, now });
   registerDietExportRoutes(router, { days, today });
+  auth?.registerRoutes(router);
 
   return async function handleRequest(req, res) {
     try {
       assertSameOrigin(req);
+      if (auth?.guard(req, res)) return;
       if (await router.handle(req, res)) return;
       if (req.url.startsWith('/api/')) throw new HttpError(404, 'Not found');
       if (await serveStatic(req, res, { root: publicDir, mounts: VENDOR_MOUNTS })) return;

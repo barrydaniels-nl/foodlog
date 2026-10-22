@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f6f8f4" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Foodlog" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" href="/icons/icon-192.png" />
+    <link rel="stylesheet" href="/css/app.css" />
+    <title>Log in · Foodlog</title>
+    <script type="module" src="/js/login.js"></script>
+  </head>
+  <body>
+    <main class="login page">
+      <form id="login-form" class="card login-card">
+        <img class="login-mark" src="/icons/icon-192.png" alt="" width="56" height="56" />
+        <h1 class="page-title">Foodlog</h1>
+        <p class="page-sub login-sub">Enter the password to continue.</p>
+        <p id="login-error" class="form-error" role="alert" hidden></p>
+        <label class="field">
+          <span class="field-label">Password</span>
+          <input class="input" type="password" name="password" autocomplete="current-password" required autofocus />
+        </label>
+        <button class="btn btn-block" type="submit">Log in</button>
+      </form>
+    </main>
+    <noscript>Foodlog needs JavaScript to run.</noscript>
+  </body>
+</html>

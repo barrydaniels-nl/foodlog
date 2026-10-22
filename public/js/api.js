@@ -24,6 +24,8 @@ async function request(method, path, body) {
   } catch {
     throw new ApiError(0, 'Cannot reach Foodlog. Check your connection.');
   }
+  // The session is gone (e.g. the password was changed): back to the login screen.
+  if (response.status === 401) location.assign('/login.html');
   if (response.status === 204) return null;
   const data = await response.json().catch(() => null);
   if (!response.ok) {
