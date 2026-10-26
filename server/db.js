@@ -96,20 +96,68 @@ const MIGRATIONS = [
     imported_at TEXT NOT NULL
   );
   `,
+  `
+  -- Micronutrients: NEVO values per food, per-ingredient values with their
+  -- origin, the matching state of each ingredient, and supplements.
+  CREATE TABLE reference_micros (
+    source TEXT NOT NULL, code INTEGER NOT NULL, nutrient TEXT NOT NULL, amount REAL NOT NULL,
+    PRIMARY KEY (source, code, nutrient),
+    FOREIGN KEY (source, code) REFERENCES reference_foods(source, code) ON DELETE CASCADE
+  );
+  ALTER TABLE reference_sources ADD COLUMN has_micros INTEGER NOT NULL DEFAULT 0;
+
+  ALTER TABLE ingredients ADD COLUMN micro_twin_code TEXT;
+  ALTER TABLE ingredients ADD COLUMN micro_status TEXT NOT NULL DEFAULT 'pending';
+  ALTER TABLE ingredients ADD COLUMN micro_job TEXT;
+  ALTER TABLE ingredients ADD COLUMN micro_attempts INTEGER NOT NULL DEFAULT 0;
+  CREATE TABLE ingredient_micros (
+    ingredient_id INTEGER NOT NULL REFERENCES ingredients(id) ON DELETE CASCADE,
+    nutrient TEXT NOT NULL, amount REAL NOT NULL,
+    origin TEXT NOT NULL CHECK (origin IN ('label', 'ai')),
+    PRIMARY KEY (ingredient_id, nutrient, origin)
+  );
+
+  CREATE TABLE supplements (
+    id INTEGER PRIMARY KEY, name TEXT NOT NULL, brand TEXT, unit_label TEXT NOT NULL,
+    archived INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE supplement_nutrients (
+    supplement_id INTEGER NOT NULL REFERENCES supplements(id) ON DELETE CASCADE,
+    nutrient TEXT NOT NULL, amount REAL NOT NULL,
+    PRIMARY KEY (supplement_id, nutrient)
+  );
+  CREATE TABLE supplement_entries (
+    id INTEGER PRIMARY KEY, date TEXT NOT NULL,
+    supplement_id INTEGER NOT NULL REFERENCES supplements(id),
+    units REAL NOT NULL, position INTEGER NOT NULL
+  );
+  CREATE INDEX supplement_entries_date ON supplement_entries(date);
+  CREATE TABLE supplement_set (
+    supplement_id INTEGER PRIMARY KEY REFERENCES supplements(id),
+    units REAL NOT NULL, position INTEGER NOT NULL
+  );
+
+  -- Foods already linked to NEVO are their own confirmed twin; the rest wait for matching.
+  UPDATE ingredients SET micro_twin_code = reference_code, micro_status = 'confirmed', micro_job = 'fill'
+    WHERE reference_code IS NOT NULL;
+  UPDATE ingredients SET micro_job = 'match' WHERE reference_code IS NULL;
+  `,
 ];
 
 /**
  * Opens (and migrates) the database.
  * @param {string} filename a file path or ':memory:'
+ * @param {{targetVersion?: number}} [options] stop after this many migrations, so tests can start from an older schema
  * @returns {DatabaseSync}
  */
-export function openDb(filename) {
+export function openDb(filename, { targetVersion = MIGRATIONS.length } = {}) {
   const db = new DatabaseSync(filename);
   db.exec('PRAGMA foreign_keys = ON');
   if (filename !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
 
   const { user_version: current } = db.prepare('PRAGMA user_version').get();
-  for (let version = current; version < MIGRATIONS.length; version += 1) {
+  for (let version = current; version < targetVersion; version += 1) {
     transaction(db, () => {
       db.exec(MIGRATIONS[version]);
       db.exec(`PRAGMA user_version = ${version + 1}`);

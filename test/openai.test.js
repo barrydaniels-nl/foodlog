@@ -1,6 +1,6 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { createOpenAiClient, OpenAiError } from '../server/openai.js';
+import { createOpenAiClient, OpenAiError, OpenAiErrorKind } from '../server/openai.js';
 
 const REQUEST = { name: 'thing', schema: { type: 'object' }, instructions: 'Be brief.', input: '{"x":1}' };
 
@@ -110,4 +110,42 @@ test('logs why a response body could not be read', async () => {
   const logged = console.error.mock.calls.map((call) => String(call.arguments[0])).join('\n');
   assert.match(logged, /body/i);
   assert.doesNotMatch(logged, /not completed/);
+});
+
+/** Rejects with an OpenAiError of `kind`. */
+const rejectsWithKind = (promise, kind) =>
+  assert.rejects(promise, (error) => error instanceof OpenAiError && error.kind === kind);
+
+const { UNAVAILABLE, BAD_ANSWER } = OpenAiErrorKind;
+
+for (const [name, answer, kind] of [
+  ['a 401', () => ({ status: 401, body: { error: { message: 'Incorrect API key' } } }), UNAVAILABLE],
+  ['a 429', () => ({ status: 429, body: { error: { message: 'Rate limit' } } }), UNAVAILABLE],
+  ['a 500', () => ({ status: 500, body: { error: { message: 'Server error' } } }), UNAVAILABLE],
+  ['a network failure', () => new TypeError('fetch failed'), UNAVAILABLE],
+  ['a refusal', () => ({ body: { status: 'completed', output: [{ type: 'message', content: [{ type: 'refusal', refusal: 'No.' }] }] } }), BAD_ANSWER],
+  ['invalid JSON text', () => ({ body: completed('not json') }), BAD_ANSWER],
+  ['an incomplete response', () => ({ body: { ...completed('{}'), status: 'incomplete' } }), BAD_ANSWER],
+  ['a reply without output text', () => ({ body: { status: 'completed', output: [] } }), BAD_ANSWER],
+]) {
+  test(`${name} is a ${kind} error`, async () => {
+    const { impl } = fakeFetch(answer);
+    await rejectsWithKind(client(impl).generateJson(REQUEST), kind);
+  });
+}
+
+test('a timeout and an unreadable body are unavailable errors', async () => {
+  const { impl } = fakeFetch(
+    (init) =>
+      new Promise((_resolve, reject) => {
+        init.signal.addEventListener('abort', () => reject(init.signal.reason));
+      }),
+  );
+  await rejectsWithKind(client(impl, { timeoutMs: 20 }).generateJson(REQUEST), UNAVAILABLE);
+  await rejectsWithKind(client(async () => new Response('<html>oops</html>', { status: 200 })).generateJson(REQUEST), UNAVAILABLE);
+});
+
+test('an OpenAiError made elsewhere is a bad answer unless told otherwise', () => {
+  assert.equal(new OpenAiError('analysis has no summary').kind, BAD_ANSWER);
+  assert.equal(new OpenAiError('down', { kind: UNAVAILABLE }).kind, UNAVAILABLE);
 });

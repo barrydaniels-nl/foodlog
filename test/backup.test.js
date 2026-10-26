@@ -38,7 +38,7 @@ test('export downloads a dated attachment', async () => {
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('content-disposition'), 'attachment; filename="foodlog-2026-10-21.json"');
   assert.equal(res.body.app, 'foodlog');
-  assert.equal(res.body.version, 1);
+  assert.equal(res.body.version, 2);
   assert.equal(res.body.ingredients.length, 2);
 });
 
@@ -115,4 +115,133 @@ test('a rejected import writes no snapshot', async () => {
   await seed(client);
   await client.post('/api/import', { app: 'other' });
   assert.equal(existsSync(server.backupDir) ? readdirSync(server.backupDir).length : 0, 0);
+});
+
+const withoutTimestamp = ({ exportedAt: _exportedAt, ...rest }) => rest;
+
+test('version 2 round-trips supplements, set, log, twins and values', async () => {
+  await seed(client);
+  const oats = (await client.get('/api/ingredients')).body[0];
+  const other = (await client.post('/api/ingredients', { name: 'Egg', kcal: 140, protein: 12, carbs: 1, fat: 10 })).body;
+  await client.put(`/api/ingredients/${oats.id}/micros/values`, { values: { iron: 3, vitaminC: 12 } });
+  server.db.prepare("UPDATE ingredients SET micro_twin_code = 'nevo:5', micro_status = 'confirmed', micro_job = 'fill' WHERE id = ?").run(oats.id);
+  server.db.prepare("INSERT INTO ingredient_micros (ingredient_id, nutrient, amount, origin) VALUES (?, 'thiamin', 0.4, 'ai')").run(oats.id);
+  server.db.prepare("UPDATE ingredients SET micro_twin_code = 'nevo:9', micro_status = 'unconfirmed', micro_job = NULL WHERE id = ?").run(other.id);
+
+  const d3 = (await client.post('/api/supplements', { name: 'D3', brand: 'Acme', unitLabel: 'drop', nutrients: { vitaminD: 25 } })).body;
+  const fish = (await client.post('/api/supplements', { name: 'Fish oil', unitLabel: 'capsule', nutrients: { epaDha: 500 } })).body;
+  await client.del(`/api/supplements/${fish.id}`);
+  await client.put('/api/supplement-set', { items: [{ supplementId: d3.id, units: 2 }] });
+  await client.post('/api/days/2026-10-21/supplements', { supplementId: d3.id, units: 1.5 });
+
+  const backup = (await client.get('/api/export')).body;
+  assert.deepEqual(backup.supplementSet, [{ supplementId: d3.id, units: 2 }]);
+  assert.equal(backup.supplementEntries.length, 1);
+  assert.deepEqual(backup.supplements.find((sup) => sup.id === fish.id).archived, true);
+  assert.deepEqual(
+    backup.ingredients.find((ing) => ing.id === oats.id).micro,
+    {
+      twinCode: 'nevo:5',
+      status: 'confirmed',
+      values: [
+        { nutrient: 'iron', amount: 3, origin: 'label' },
+        { nutrient: 'thiamin', amount: 0.4, origin: 'ai' },
+        { nutrient: 'vitaminC', amount: 12, origin: 'label' },
+      ],
+    },
+  );
+
+  const fresh = await startTestServer({ today: '2026-10-21' });
+  try {
+    const res = await api(fresh.url).post('/api/import', backup);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.supplements, 2);
+    assert.equal(res.body.supplementEntries, 1);
+    assert.deepEqual(withoutTimestamp((await api(fresh.url).get('/api/export')).body), withoutTimestamp(backup));
+    const jobs = fresh.db.prepare('SELECT id, micro_job, micro_attempts FROM ingredients WHERE id IN (?, ?) ORDER BY id').all(oats.id, other.id);
+    assert.deepEqual(
+      jobs.map((row) => [row.id, row.micro_job, row.micro_attempts]),
+      [[oats.id, 'fill', 0], [other.id, null, 0]].sort((a, b) => a[0] - b[0]),
+    );
+  } finally {
+    await fresh.close();
+  }
+});
+
+test('imports a version 1 backup and queues matching', async () => {
+  await seed(client);
+  const backup = (await client.get('/api/export')).body;
+  backup.version = 1;
+  for (const key of ['supplements', 'supplementSet', 'supplementEntries']) delete backup[key];
+  for (const ingredient of backup.ingredients) delete ingredient.micro;
+  backup.ingredients[0].referenceCode = 'nevo:83';
+  server.db.prepare("INSERT INTO supplements (name, unit_label) VALUES ('Leftover', 'pill')").run();
+
+  const res = await client.post('/api/import', backup);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.supplements, 0);
+  assert.equal(server.db.prepare('SELECT COUNT(*) AS n FROM supplements').get().n, 0, 'a version 1 file replaces supplements with none');
+  const rows = server.db
+    .prepare('SELECT id, micro_twin_code, micro_status, micro_job FROM ingredients ORDER BY id')
+    .all()
+    .map((row) => ({ ...row }));
+  assert.deepEqual(rows, [
+    { id: backup.ingredients[0].id, micro_twin_code: 'nevo:83', micro_status: 'confirmed', micro_job: 'fill' },
+    { id: backup.ingredients[1].id, micro_twin_code: null, micro_status: 'pending', micro_job: 'match' },
+  ]);
+});
+
+test('a version 1 file ignores v2-only fields instead of importing them unchecked', async () => {
+  await seed(client);
+  const backup = (await client.get('/api/export')).body;
+  backup.version = 1;
+  backup.supplements = [{ id: 1, name: 'Bogus', nutrients: { vitaminZ: -5 } }];
+  backup.supplementSet = 'not a list';
+  backup.supplementEntries = [{ id: 1, date: 'never', supplementId: 99 }];
+  backup.ingredients[0].micro = { twinCode: 'nevo:1', status: 'bogus', values: [{ nutrient: 'vitaminZ', amount: -1, origin: 'x' }] };
+
+  const res = await client.post('/api/import', backup);
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(res.body.supplements, 0);
+  assert.equal(res.body.supplementEntries, 0);
+  assert.equal(server.db.prepare('SELECT COUNT(*) AS n FROM supplements').get().n, 0);
+  assert.equal(server.db.prepare('SELECT COUNT(*) AS n FROM ingredient_micros').get().n, 0);
+  const oats = server.db.prepare('SELECT micro_twin_code, micro_status, micro_job FROM ingredients WHERE id = ?').get(backup.ingredients[0].id);
+  assert.deepEqual({ ...oats }, { micro_twin_code: null, micro_status: 'pending', micro_job: 'match' }, 'derived as for any version 1 food');
+});
+
+test('rejects a supplement entry that references a missing supplement', async () => {
+  await seed(client);
+  const d3 = (await client.post('/api/supplements', { name: 'D3', unitLabel: 'drop', nutrients: { vitaminD: 25 } })).body;
+  await client.post('/api/days/2026-10-21/supplements', { supplementId: d3.id, units: 1 });
+  const backup = (await client.get('/api/export')).body;
+  backup.supplementEntries[0].supplementId = 999;
+  const res = await client.post('/api/import', backup);
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /supplementEntries\[0\] refers to a missing supplement/);
+  assert.equal((await client.get('/api/supplements')).body.length, 1, 'existing data is untouched');
+});
+
+test('rejects invalid micronutrient and supplement rows', async () => {
+  await seed(client);
+  await client.post('/api/supplements', { name: 'D3', unitLabel: 'drop', nutrients: { vitaminD: 25 } });
+  const backup = (await client.get('/api/export')).body;
+  const cases = [
+    [(b) => (b.ingredients[0].micro.status = 'bogus'), /ingredients\[0\]\.micro\.status/],
+    [(b) => (b.ingredients[0].micro.twinCode = 5), /ingredients\[0\]\.micro\.twinCode/],
+    [(b) => delete b.ingredients[0].micro, /ingredients\[0\]\.micro is not an object/],
+    [(b) => b.ingredients[0].micro.values.push({ nutrient: 'iron', amount: 1, origin: 'nevo' }), /values\[0\]\.origin/],
+    [(b) => b.ingredients[0].micro.values.push({ nutrient: 'bogus', amount: 1, origin: 'label' }), /values\[0\]\.nutrient/],
+    [(b) => (b.supplements[0].nutrients.bogus = 1), /nutrients\.bogus is not a known nutrient/],
+    [(b) => (b.supplements[0].nutrients.vitaminD = -1), /nutrients\.vitaminD/],
+    [(b) => delete b.supplementSet, /supplementSet must be a list/],
+  ];
+  for (const [mutate, expected] of cases) {
+    const copy = structuredClone(backup);
+    mutate(copy);
+    const res = await client.post('/api/import', copy);
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, expected);
+  }
+  assert.equal((await client.get('/api/supplements')).body.length, 1);
 });

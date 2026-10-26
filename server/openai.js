@@ -8,8 +8,27 @@ export const DEFAULT_MODEL = 'gpt-6-luna';
 // Short coaching answers need little reasoning; medium effort ran past 30 s.
 const REASONING_EFFORT = 'low';
 
+/**
+ * Why a call failed:
+ * - `unavailable`: OpenAI could not be reached or answered with an error status,
+ *   so the same request may well work later;
+ * - `badAnswer`: OpenAI answered, but the answer is unusable for this request.
+ */
+export const OpenAiErrorKind = Object.freeze({ UNAVAILABLE: 'unavailable', BAD_ANSWER: 'badAnswer' });
+
 /** Any failure talking to OpenAI. The message is for logs, never for users. */
-export class OpenAiError extends Error {}
+export class OpenAiError extends Error {
+  /**
+   * @param {string} message
+   * @param {{kind?: string}} [options] an OpenAiErrorKind; an answer problem unless told otherwise
+   */
+  constructor(message, { kind = OpenAiErrorKind.BAD_ANSWER } = {}) {
+    super(message);
+    this.kind = kind;
+  }
+}
+
+const { UNAVAILABLE, BAD_ANSWER } = OpenAiErrorKind;
 
 /**
  * @param {{apiKey: string, model: string, fetchImpl?: typeof fetch, timeoutMs?: number}} options
@@ -19,15 +38,16 @@ export function createOpenAiClient({ apiKey, model, fetchImpl = fetch, timeoutMs
    * Logs with context, then returns the error for the caller to throw.
    * Error texts can echo the key (a 401 message, an invalid header value),
    * so it is redacted from everything logged.
+   * @param {string} kind an OpenAiErrorKind
    * @param {string} message
    * @param {unknown} [cause]
    * @returns {OpenAiError}
    */
-  function failure(message, cause) {
+  function failure(kind, message, cause) {
     const detail = cause === undefined ? message : `${message} (${cause?.name ?? 'Error'}: ${cause?.message ?? cause})`;
     const safe = detail.replaceAll(apiKey, '[redacted]');
     console.error(`OpenAI: ${safe}`);
-    return new OpenAiError(safe);
+    return new OpenAiError(safe, { kind });
   }
 
   /**
@@ -37,18 +57,18 @@ export function createOpenAiClient({ apiKey, model, fetchImpl = fetch, timeoutMs
    */
   function parseReply(data) {
     if (data?.status !== 'completed') {
-      throw failure(`response not completed (status ${data?.status}, reason ${data?.incomplete_details?.reason})`);
+      throw failure(BAD_ANSWER, `response not completed (status ${data?.status}, reason ${data?.incomplete_details?.reason})`);
     }
     const message = (data.output ?? []).find((item) => item?.type === 'message');
     const parts = message?.content ?? [];
     const refusal = parts.find((part) => part?.type === 'refusal');
-    if (refusal) throw failure(`model refused: ${refusal.refusal}`);
+    if (refusal) throw failure(BAD_ANSWER, `model refused: ${refusal.refusal}`);
     const text = parts.find((part) => part?.type === 'output_text')?.text;
-    if (typeof text !== 'string') throw failure('response has no output text');
+    if (typeof text !== 'string') throw failure(BAD_ANSWER, 'response has no output text');
     try {
       return JSON.parse(text);
     } catch (error) {
-      throw failure('response text is not valid JSON', error);
+      throw failure(BAD_ANSWER, 'response text is not valid JSON', error);
     }
   }
 
@@ -72,18 +92,18 @@ export function createOpenAiClient({ apiKey, model, fetchImpl = fetch, timeoutMs
         signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (error) {
-      throw failure('request failed', error);
+      throw failure(UNAVAILABLE, 'request failed', error);
     }
     let data;
     try {
       data = await response.json();
     } catch (error) {
       // An error status without a JSON body is still reported by its status below.
-      if (response.ok) throw failure(`response body unreadable (status ${response.status})`, error);
+      if (response.ok) throw failure(UNAVAILABLE, `response body unreadable (status ${response.status})`, error);
       data = null;
     }
     if (!response.ok) {
-      throw failure(`returned ${response.status}: ${data?.error?.message ?? 'no error message'}`);
+      throw failure(UNAVAILABLE, `returned ${response.status}: ${data?.error?.message ?? 'no error message'}`);
     }
     return parseReply(data);
   }

@@ -2,6 +2,7 @@
 import { NUTRIENT_KEYS } from '../public/js/shared/constants.js';
 import { HttpError } from './http.js';
 import { transaction } from './db.js';
+import { FoodMicroStatus, MicroJob, validateMicroValues } from './food-micros.js';
 import { optionalString, requireId, requireNumber, requireString } from './validate.js';
 
 const BARCODE_PATTERN = /^\d{8,14}$/;
@@ -25,6 +26,7 @@ const RECENT_LIMIT = 8;
  * @property {string|null} referenceCode e.g. 'nevo:83' while the values are unchanged
  * @property {boolean} archived
  * @property {Array<{id: number, label: string, grams: number}>} portions
+ * @property {{twinCode: string|null, status: string}} micro where its micronutrients come from, see food-micros.js
  */
 
 /**
@@ -60,6 +62,8 @@ function validateInput(input) {
       label: requireString(portion?.label, `portions[${i}].label`, { maxLength: 40 }),
       grams: requireNumber(portion?.grams, `portions[${i}].grams`, { min: 0.1, max: 5000 }),
     })),
+    // Label micronutrients; absent means "leave the stored ones alone".
+    micros: input.micros === undefined || input.micros === null ? undefined : validateMicroValues(input.micros, 'micros'),
   };
 }
 
@@ -69,17 +73,19 @@ function escapeLike(text) {
 
 /**
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{today: () => string}} deps
+ * @param {{today: () => string, foodMicros: ReturnType<import('./food-micros.js').createFoodMicrosRepo>}} deps
  */
-export function createIngredientsRepo(db, { today }) {
+export function createIngredientsRepo(db, { today, foodMicros }) {
   const statements = {
     byId: db.prepare('SELECT * FROM ingredients WHERE id = ?'),
     byBarcode: db.prepare('SELECT * FROM ingredients WHERE barcode = ?'),
     byReference: db.prepare('SELECT * FROM ingredients WHERE reference_code = ?'),
     portions: db.prepare('SELECT id, label, grams FROM portions WHERE ingredient_id = ? ORDER BY id'),
     insert: db.prepare(
-      `INSERT INTO ingredients (name, brand, barcode, kcal, protein, carbs, fat, fiber, source, reference_code)
-       VALUES (:name, :brand, :barcode, :kcal, :protein, :carbs, :fat, :fiber, :source, :referenceCode)`,
+      `INSERT INTO ingredients (name, brand, barcode, kcal, protein, carbs, fat, fiber, source, reference_code,
+         micro_twin_code, micro_status, micro_job)
+       VALUES (:name, :brand, :barcode, :kcal, :protein, :carbs, :fat, :fiber, :source, :referenceCode,
+         :microTwinCode, :microStatus, :microJob)`,
     ),
     update: db.prepare(
       `UPDATE ingredients SET name = :name, brand = :brand, barcode = :barcode, kcal = :kcal, protein = :protein,
@@ -138,6 +144,7 @@ export function createIngredientsRepo(db, { today }) {
       referenceCode: row.reference_code,
       archived: row.archived === 1,
       portions: statements.portions.all(row.id).map((p) => ({ ...p })),
+      micro: { twinCode: row.micro_twin_code, status: row.micro_status },
     };
   }
 
@@ -192,11 +199,17 @@ export function createIngredientsRepo(db, { today }) {
   function create(input, { referenceCode = null } = {}) {
     const clean = validateInput(input);
     assertBarcodeFree(clean.barcode);
+    // A food copied unchanged from NEVO is its own approved twin; anything else waits for the matcher.
+    const micro = referenceCode
+      ? { microTwinCode: referenceCode, microStatus: FoodMicroStatus.CONFIRMED, microJob: MicroJob.FILL }
+      : { microTwinCode: null, microStatus: FoodMicroStatus.PENDING, microJob: MicroJob.MATCH };
     const id = transaction(db, () => {
-      const { portions, ...fields } = clean;
-      const { lastInsertRowid } = statements.insert.run({ ...fields, referenceCode });
-      writePortions(lastInsertRowid, portions);
-      return Number(lastInsertRowid);
+      const { portions, micros, ...fields } = clean;
+      const { lastInsertRowid } = statements.insert.run({ ...fields, referenceCode, ...micro });
+      const newId = Number(lastInsertRowid);
+      writePortions(newId, portions);
+      if (micros) foodMicros.writeLabelValues(newId, micros);
+      return newId;
     });
     return get(id);
   }
@@ -212,10 +225,12 @@ export function createIngredientsRepo(db, { today }) {
     const link = keepsReference
       ? { referenceCode: existing.referenceCode, source: existing.source }
       : { referenceCode: null, source: existing.referenceCode ? 'manual' : clean.source };
+    // The micronutrient twin is kept: changed macros don't change what the food is.
     transaction(db, () => {
-      const { portions, ...fields } = clean;
+      const { portions, micros, ...fields } = clean;
       statements.update.run({ ...fields, ...link, id: existing.id });
       writePortions(existing.id, portions);
+      if (micros) foodMicros.writeLabelValues(existing.id, micros);
       const { name, brand, kcal, protein, carbs, fat, fiber } = fields;
       statements.refreshEntries.run({ id: existing.id, fromDate: today(), name, brand, kcal, protein, carbs, fat, fiber });
     });

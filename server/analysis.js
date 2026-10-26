@@ -22,8 +22,8 @@ const tipList = { type: 'array', items: { type: 'string' } };
 export const ANALYSIS_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['summary', 'protein', 'calories'],
-  properties: { summary: { type: 'string' }, protein: tipList, calories: tipList },
+  required: ['summary', 'protein', 'calories', 'micronutrients'],
+  properties: { summary: { type: 'string' }, protein: tipList, calories: tipList, micronutrients: tipList },
 };
 
 export const ANALYSIS_INSTRUCTIONS = `You are a practical nutrition coach reviewing one planned day of food.
@@ -33,14 +33,20 @@ The input is JSON:
 - targets: daily kcal and protein targets; totals: the whole day's planned totals.
 - meals: planned foods per meal with grams, kcal and protein for that amount, and per100 values (per 100 g).
 - foods: the user's own food list with per-100 g values.
+- micronutrients: per nutrient the amount from food and from supplements, the recommended amount and upper limit (left out when unknown), percent of the recommended amount, overLimit, estimatedShare (0-1, the part that comes from estimated values), ulBasis and limitAmount (what the upper limit applies to and that amount), and unknownGrams (grams of planned food with no data for this nutrient, left out when 0).
+- supplements: items with name, units and unitLabel. logged is true when the user logged them for this day; false means items is their usual daily set and they may not take it.
 - time and mealsAhead: only present when the day is today.
 
 Write in English and answer with JSON that matches the schema:
 - summary: 1-2 sentences on kcal and protein against the targets and which foods supply most of the calories.
 - protein: 2-4 tips that raise protein. Each tip is one sentence and names a concrete swap, amount change or addition, tied to the planned foods and grams. Prefer foods from the foods list; other common foods are allowed.
 - calories: 2-4 one-sentence tips to lower calories, only when the totals exceed the kcal target or would exceed it after following the protein tips. Otherwise an empty list.
+- micronutrients: 0-4 one-sentence tips for nutrients below 66% of the recommended amount or above the upper limit. For a nutrient that is too low, suggest food changes first and supplements only after that. An empty list when nothing stands out.
 
 Rules:
+- Never advise going above an upper limit or taking medication.
+- overLimit is authoritative: only call a nutrient above its upper limit when overLimit is true. The upper limit is compared with limitAmount, never with the total: for ulBasis "supplement" (magnesium, folic acid, niacin) only the supplements count, for "retinol" (vitamin A) only preformed retinol counts.
+- An amount with unknownGrams is a lower bound. When unknownGrams is large compared with the day's food, say the amount is uncertain instead of advising a supplement for it.
 - Any number you estimate (not taken from the input) starts with "≈", for example "≈ +15 g protein".
 - When mealsAhead is given, only suggest changes to foods in those meals; meals not listed have been eaten. Still count every meal in the totals.
 - No generic advice such as "eat more protein"; every tip refers to this day's plan.`;
@@ -51,12 +57,35 @@ function formatTime(date) {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+/** @returns {object} a copy without the null fields, to keep the prompt short */
+const withoutNulls = (object) => Object.fromEntries(Object.entries(object).filter(([, value]) => value !== null));
+
+/**
+ * What the model sees of the day's supplements: the entries when any were
+ * logged, otherwise the daily set so it knows what the user usually takes.
+ * @param {import('./micros.js').MicroDay} microDay
+ * @param {import('./supplements.js').SetItem[]} supplementSet
+ * @returns {{logged: boolean, items: Array<{name: string, units: number, unitLabel: string}>}}
+ */
+function supplementsInput(microDay, supplementSet) {
+  const logged = microDay.supplements.length > 0;
+  const source = logged ? microDay.supplements : supplementSet;
+  return { logged, items: source.map(({ name, units, unitLabel }) => ({ name, units, unitLabel })) };
+}
+
 /**
  * The prompt input: only the data the analysis needs.
- * @param {{day: import('./days.js').Day, foods: object[], isToday: boolean, now: Date}} options
+ * @param {{
+ *   day: import('./days.js').Day,
+ *   foods: object[],
+ *   isToday: boolean,
+ *   now: Date,
+ *   microDay: import('./micros.js').MicroDay,
+ *   supplementSet: import('./supplements.js').SetItem[],
+ * }} options
  * @returns {object}
  */
-export function buildAnalysisInput({ day, foods, isToday, now }) {
+export function buildAnalysisInput({ day, foods, isToday, now, microDay, supplementSet }) {
   const meals = Object.fromEntries(
     MEAL_SLOTS.map((slot) => [
       slot,
@@ -78,6 +107,24 @@ export function buildAnalysisInput({ day, foods, isToday, now }) {
     mealsAhead: isToday ? slotsAhead(now) : null,
     meals,
     foods,
+    micronutrients: microDay.nutrients.map(
+      ({ key, unit, food, supplements, recommended, upperLimit, ulBasis, limitAmount, percent, overLimit, estimatedShare, unknownGrams }) =>
+        withoutNulls({
+          key,
+          unit,
+          food,
+          supplements,
+          recommended,
+          upperLimit,
+          ulBasis,
+          limitAmount,
+          percent,
+          overLimit,
+          estimatedShare,
+          unknownGrams: unknownGrams > 0 ? unknownGrams : null,
+        }),
+    ),
+    supplements: supplementsInput(microDay, supplementSet),
   };
 }
 
@@ -93,12 +140,17 @@ function cleanTips(value, field) {
 
 /**
  * @param {unknown} raw the model's JSON
- * @returns {{summary: string, protein: string[], calories: string[]}}
+ * @returns {{summary: string, protein: string[], calories: string[], micronutrients: string[]}}
  */
 export function parseAnalysis(raw) {
   const summary = typeof raw?.summary === 'string' ? raw.summary.trim() : '';
   if (!summary) throw new OpenAiError('analysis has no summary');
-  return { summary, protein: cleanTips(raw.protein, 'protein'), calories: cleanTips(raw.calories, 'calories') };
+  return {
+    summary,
+    protein: cleanTips(raw.protein, 'protein'),
+    calories: cleanTips(raw.calories, 'calories'),
+    micronutrients: cleanTips(raw.micronutrients, 'micronutrients'),
+  };
 }
 
 /**
@@ -107,11 +159,13 @@ export function parseAnalysis(raw) {
  *   openAi: {generateJson: (request: object) => Promise<any>}|null,
  *   days: {getDay: (date: string) => import('./days.js').Day},
  *   ingredients: {listByRecentUse: (limit: number) => object[]},
+ *   micros: {getDay: (date: string) => import('./micros.js').MicroDay},
+ *   supplements: {getSet: () => import('./supplements.js').SetItem[]},
  *   today: () => string,
  *   now: () => Date,
  * }} deps
  */
-export function registerAnalysisRoutes(router, { openAi, days, ingredients, today, now }) {
+export function registerAnalysisRoutes(router, { openAi, days, ingredients, micros, supplements, today, now }) {
   router.add('GET', '/api/analysis/status', () => ({ enabled: openAi !== null }));
 
   router.add('POST', '/api/days/:date/analysis', async ({ params }) => {
@@ -127,6 +181,8 @@ export function registerAnalysisRoutes(router, { openAi, days, ingredients, toda
       foods: ingredients.listByRecentUse(FOOD_LIMIT),
       isToday: date === todayIso,
       now: now(),
+      microDay: micros.getDay(date),
+      supplementSet: supplements.getSet(),
     });
     try {
       const raw = await openAi.generateJson({

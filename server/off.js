@@ -3,6 +3,7 @@
  * before they are copied into the local ingredient database.
  */
 import { OFF_COUNTRIES, OFF_WORLD } from '../public/js/shared/constants.js';
+import { MICRO_BY_KEY, roundMicro } from '../public/js/shared/micronutrients.js';
 import { HttpError } from './http.js';
 import { validateBarcode } from './ingredients.js';
 
@@ -28,6 +29,21 @@ const FIELDS = [
   'image_small_url',
 ].join(',');
 const UNAVAILABLE = 'Open Food Facts is unavailable right now. Try again in a moment.';
+/** OFF nutriment name → our micronutrient key. OFF's folate is taken as dietary folate equivalents. */
+const OFF_MICROS = {
+  'vitamin-d': 'vitaminD',
+  calcium: 'calcium',
+  iron: 'iron',
+  salt: 'salt',
+  potassium: 'potassium',
+  magnesium: 'magnesium',
+  zinc: 'zinc',
+  'vitamin-b12': 'vitaminB12',
+  'vitamin-c': 'vitaminC',
+  folates: 'folate',
+};
+/** OFF stores every `_100g` amount in grams. */
+const FROM_GRAMS = { g: 1, mg: 1000, 'µg': 1_000_000 };
 
 /**
  * @typedef {object} OffCandidate
@@ -41,6 +57,7 @@ const UNAVAILABLE = 'Open Food Facts is unavailable right now. Try again in a mo
  * @property {number} fiber
  * @property {Array<{label: string, grams: number}>} portions
  * @property {string|null} imageUrl
+ * @property {Record<string, number>} micros label micronutrients per 100 g, in each nutrient's unit
  * @property {boolean} complete true when every required nutrient is known
  */
 
@@ -68,6 +85,26 @@ function energyKcal(nutriments) {
 }
 
 /**
+ * @param {Record<string, unknown>} nutriments
+ * @returns {Record<string, number>} the known micronutrients, converted from grams
+ */
+function offMicros(nutriments) {
+  const micros = {};
+  for (const [offName, key] of Object.entries(OFF_MICROS)) {
+    const raw = nutriments[`${offName}_100g`];
+    // A blank is unknown; Number('') would turn it into a label value of 0 that masks the NEVO twin.
+    if (typeof raw === 'string' && raw.trim() === '') continue;
+    const grams = numberOrNull(raw);
+    if (grams === null) continue;
+    const { unit, max } = MICRO_BY_KEY[key];
+    const amount = roundMicro(grams * FROM_GRAMS[unit]);
+    // Crowd-sourced data has unit mix-ups; an implausible value would make the food impossible to save.
+    if (amount <= max) micros[key] = amount;
+  }
+  return micros;
+}
+
+/**
  * Maps a raw OFF product onto our per-100 g shape. OFF lists drinks per
  * 100 ml under the same `_100g` keys; we treat those as per 100 g.
  * @param {any} raw
@@ -88,6 +125,7 @@ export function mapOffProduct(raw) {
     fiber: round1(numberOrNull(nutriments.fiber_100g)) ?? 0,
     portions: [],
     imageUrl: firstText(raw.image_small_url),
+    micros: offMicros(nutriments),
   };
   const serving = numberOrNull(raw.serving_quantity);
   if (serving) candidate.portions.push({ label: firstText(raw.serving_size) ?? 'Serving', grams: serving });

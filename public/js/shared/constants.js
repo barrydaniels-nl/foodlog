@@ -19,7 +19,14 @@ export const SLOT_LABELS = Object.freeze({
 /** Nutrient fields, always expressed per 100 g in storage. */
 export const NUTRIENT_KEYS = Object.freeze(['kcal', 'protein', 'carbs', 'fat', 'fiber']);
 
-export const DEFAULT_SETTINGS = Object.freeze({ kcalTarget: 2000, proteinTarget: 120, offCountry: 'nl' });
+export const DEFAULT_SETTINGS = Object.freeze({
+  kcalTarget: 2000,
+  proteinTarget: 120,
+  offCountry: 'nl',
+  sex: null,
+  birthYear: null,
+  microTargets: Object.freeze({}),
+});
 
 /** Open Food Facts search regions: code → OFF country tag name. */
 export const OFF_COUNTRIES = Object.freeze({
