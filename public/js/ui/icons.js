@@ -21,6 +21,7 @@ const PATHS = {
   upload: '<path d="M12 20V9M7 14l5-5 5 5M5 4h14"/>',
   restore: '<path d="M4 12a8 8 0 1 0 3-6.2L4 8"/><path d="M4 4v4h4"/>',
   check: '<path d="m5 12 5 5L20 7"/>',
+  pill: '<rect x="3" y="8.5" width="18" height="7" rx="3.5" transform="rotate(-45 12 12)"/><path d="m9.2 9.2 5.6 5.6"/>',
   calendar: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
 };
 

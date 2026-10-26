@@ -71,7 +71,7 @@ test('router returns false for unmatched paths', async () => {
 
 test('openDb migrates and enforces slot check', () => {
   const db = openDb(':memory:');
-  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 2);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 3);
   db.prepare("INSERT INTO ingredients (name, kcal, protein, carbs, fat) VALUES ('Oats', 380, 13, 60, 7)").run();
   assert.throws(() =>
     db

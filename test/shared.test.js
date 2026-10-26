@@ -165,7 +165,14 @@ test('meal slots are fixed and ordered', () => {
   assert.equal(MealSlot.SNACKS, 'snacks');
   assert.equal(SLOT_LABELS.breakfast, 'Breakfast');
   assert.ok(Object.isFrozen(MealSlot));
-  assert.deepEqual(DEFAULT_SETTINGS, { kcalTarget: 2000, proteinTarget: 120, offCountry: 'nl' });
+  assert.deepEqual(DEFAULT_SETTINGS, {
+    kcalTarget: 2000,
+    proteinTarget: 120,
+    offCountry: 'nl',
+    sex: null,
+    birthYear: null,
+    microTargets: {},
+  });
 });
 
 test('slotForTime keeps the existing meal boundaries', () => {

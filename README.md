@@ -23,10 +23,15 @@ laptop over your Tailscale tailnet.
   official values, no typing needed.
 - **Saved meals:** build meals like "Chicken rice bowl" once and add them at
   ×0.5 to ×2.
+- **Micronutrients and supplements:** the **Micros** page shows 23 vitamins,
+  minerals, salt and fatty-acid values for a day or a month against Dutch
+  reference amounts, and counts the supplements you log (see below).
 - **Day analysis (AI, optional):** an OpenAI-written review of the day you're
-  planning, with tips to get more protein and, when needed, fewer calories.
-- **Diet export for an LLM:** a read-only Markdown page of what you ate, to
-  paste as a link into a chat with an AI that keeps an eye on your health.
+  planning, with tips to get more protein, fewer calories and, when needed,
+  more of a micronutrient you're short on.
+- **Diet export for an LLM:** a read-only Markdown page of what you ate, with
+  micronutrients and supplements, to paste as a link into a chat with an AI
+  that keeps an eye on your health.
 - **Backups:** export everything as JSON and restore it later.
 
 It's a single-user app with no accounts: your tailnet decides who can reach
@@ -40,7 +45,7 @@ flowchart LR
   ts --> app[Foodlog container :8080]
   app --> db[(SQLite on volume foodlog-data)]
   app -- name search / barcode --> off[Open Food Facts]
-  app -- day analysis --> openai[OpenAI]
+  app -- day analysis, micronutrient matching --> openai[OpenAI]
 ```
 
 - A small Node 24 server (`node:http` + built-in `node:sqlite`, no runtime npm
@@ -128,6 +133,116 @@ If you edit its values it becomes your own food and loses the NEVO label.
 RIVM's required credit line is shown at the bottom of every page. When RIVM
 publishes a new version, upload it the same way.
 
+## Micronutrients and supplements
+
+The **Micros** item in the navigation shows what the day (or the month) adds up
+to for vitamins, minerals, salt and omega-3 fats, next to the Dutch reference
+amount for you. Switch between the day and month view at the top. Supplements
+are logged on the same page: **Manage supplements** (`#/micros/supplements`)
+is where you create them.
+
+### Where the values come from
+
+For every nutrient of every food, Foodlog uses the first source that has a
+value:
+
+1. **The label:** the values from Open Food Facts, or what you typed in.
+2. **The NEVO twin:** every food is linked to one NEVO food and uses its values.
+   A NEVO food is its own twin. A blank in NEVO means "unknown", never zero, so
+   a missing value doesn't make a nutrient look short.
+3. **An AI estimate:** only for what neither the label nor the twin knows.
+
+A "≈" next to a nutrient means that more than 25% of its total comes from
+estimated values: AI estimates, and NEVO twin values on foods whose AI-chosen
+twin you haven't confirmed yet. Matches made by the AI are labelled **AI-matched ·
+unconfirmed** until you confirm them under **Review matches**
+(`#/micros/review`), where you can also pick another twin by hand.
+
+Micronutrients are computed **live** from each food's current values, unlike
+the macros, which are snapshots on the plan. So a better match or a corrected
+label improves past days too.
+
+### Set up your profile
+
+The reference amounts depend on who you are. Set your sex and birth year under
+**Settings → Profile**. You can also fill in your own amount for any nutrient,
+for example when your doctor gave you a different target. Thiamin, niacin and
+ALA are defined per amount of energy, so they scale with your kcal target.
+
+### Upload NEVO again
+
+NEVO files loaded before this feature have no micronutrients. Upload the NEVO
+file once more (see [Basic foods](#basic-foods-nevo)); until you do, Settings
+shows a notice. Your foods and plans stay as they are.
+
+### Automatic matching (AI)
+
+The matcher runs only when `OPENAI_API_KEY` is set, and it waits until you
+have uploaded the NEVO file with micronutrients (see above). Every 30 seconds
+it checks for foods that need micronutrients and works through them one at a
+time. For each food it can make up to three requests to OpenAI:
+
+- **Search terms:** sends the food's name, brand and per-100 g macros, and gets
+  back words to look for in NEVO.
+- **Twin choice:** sends the same food details plus up to 40 NEVO foods as
+  candidates, and gets back the best match.
+- **Estimate:** sends the food details plus the list of nutrients that
+  neither the label nor the twin has, and gets back estimated amounts.
+
+Your days, profile and supplements are never sent. The answers are saved with
+the food, marked as unconfirmed.
+
+Without a key the matcher stays off. Foods that have label values, and NEVO
+foods themselves, keep their data. Foods with neither show "no micronutrient
+data" until you pick a twin by hand under **Review matches**. The startup log
+says which it is:
+
+```
+Micronutrient matching: on
+Micronutrient matching: off (no OPENAI_API_KEY)
+```
+
+### Supplements
+
+- Enter the values **per unit** (one tablet, one capsule, one scoop).
+- Folate is entered as **folic acid** in µg and counts 1.7 times as much as
+  dietary folate equivalents (DFE).
+- Vitamin D can be entered in **IU**; 40 IU is 1 µg.
+
+### Limits and labels
+
+Some nutrients have an upper limit, shown as a warning when you go over it:
+
+- The limits for **magnesium**, **folic acid** and **niacin** apply to
+  supplements only. Food isn't counted against them.
+- **Vitamin A's** limit applies to retinol only, not to beta-carotene.
+- **Iron's** 40 mg is a "safe level" from EFSA, not a formal upper limit.
+- **Salt's** 6 g is the Dutch guideline maximum.
+- **Vitamin E, selenium and phosphorus** are marked "indicative": the evidence
+  behind their reference amount is thinner, so treat them as a rough guide.
+
+> **Vitamin D:** the Dutch advice is to take a supplement of 10 µg a day if
+> you are a woman between 50 and 70 or get little sun, and 20 µg a day from
+> age 70. Foodlog compares your intake with the reference amount; it doesn't
+> apply this supplement advice for you.
+
+### Reference values
+
+The reference amounts and limits are for healthy adults of 18 and over, not
+pregnant or breastfeeding. They come from:
+
+- the Gezondheidsraad advisories
+  [2018](https://www.gezondheidsraad.nl/site/binaries/site-content/collections/documents/2018/09/18/voedingsnormen-voor-vitamines-en-mineralen-voor-volwassenen/kernadvies+Voedingsnormen+voor+vitamines+en+mineralen+voor+volwassenen.pdf)
+  (vitamins and minerals),
+  [2023](https://www.gezondheidsraad.nl/site/binaries/site-content/collections/documents/2023/03/07/advies-aanvaardbare-bovengrenzen-voor-vitamines-en-mineralen/20230307-Advies-aanvaardbare-bovengrenzen-voor-vitamines-en-mineralen-042-VWS-GR.pdf)
+  (upper limits),
+  [2025](https://www.gezondheidsraad.nl/site/binaries/site-content/collections/documents/2025/12/04/advies-richtlijnen-goede-voeding-eiwitbronnen-en-voedingspatronen-2025/19-richtlijnen-goede-voeding-eiwitbronnen-en-voedingspatronen-2025-advies.pdf)
+  (salt) and
+  [2026](https://www.gezondheidsraad.nl/site/binaries/site-content/collections/documents/2026/07/07/advies-voedingsnormen-voor-vetten-vetzuren-verteerbare-koolhydraten-en-voedingsvezels/14-voedingsnormen-voor-vetten-vetzuren-verteerbare-koolhydraten-en-voedingsvezels-erratum.pdf)
+  (fats: EPA + DHA and ALA);
+- the [EFSA overview of tolerable upper intake levels](https://www.efsa.europa.eu/sites/default/files/2024-05/ul-summary-report.pdf)
+  (version 11, August 2025), which the Gezondheidsraad has adopted.
+
 ## Day analysis (AI)
 
 On today or a future day, **✦ Analyse day** (under the rings) asks OpenAI for a
@@ -146,7 +261,9 @@ docker compose up -d
 
 Each analysis sends OpenAI the day's planned foods with their amounts and
 values, your kcal and protein targets, up to 300 of your foods (name, brand and
-values per 100 g, most recently used first) and, on today, the current time.
+values per 100 g, most recently used first), the day's micronutrient totals
+against your reference amounts, your supplements (the ones logged that day, or
+your usual set when none are logged) and, on today, the current time.
 Nothing else is sent and nothing is stored.
 
 ## Diet export for an LLM
@@ -161,8 +278,9 @@ https://<pi-name>.<tailnet-name>.ts.net/api/diet?days=90
 - `days` is optional: 30 by default, 1 to 365. The diary ends today; future
   plans are left out.
 - It lists each day newest first with every food, its grams and values, the
-  day's totals against your targets, and a summary (averages, days over the
-  kcal target, days under the protein target). Days without food say
+  day's totals against your targets, the supplements you took, and a summary
+  (averages, days over the kcal target, days under the protein target). A
+  micronutrient table covers the completed days. Days without food say
   "Nothing logged" so they aren't read as fasting.
 - Foodlog stores plans, so past days are taken as eaten and today is marked
   as possibly incomplete. Targets are your current settings.
@@ -195,6 +313,12 @@ docker compose up -d
   only matters when a password is set.
 
 
+## Backups
+
+Backups are version 2 and include your supplements and the micronutrient data
+of your foods (twins, labels and AI estimates). Version 1 files from before
+micronutrients still import.
+
 - **In the app (easiest):** Settings → Export downloads a JSON file. Settings →
   Import replaces everything with a backup. Before replacing anything, the server
   saves the current data to `/data/backups/pre-import-<time>.json` in the volume,
@@ -226,8 +350,8 @@ docker compose up -d
 | `PORT`         | `8080`             | Port inside the container                                  |
 | `DB_PATH`      | `/data/foodlog.db` | SQLite file (on the `foodlog-data` volume)                 |
 | `TZ`           | `Europe/Amsterdam` | Decides what "today" means when ingredient edits update plans |
-| `OPENAI_API_KEY` | _(unset)_        | In `.env`; turns on the day analysis                       |
-| `OPENAI_MODEL` | `gpt-6-luna`       | In `.env`; OpenAI reasoning model (GPT-5 or newer) for the day analysis |
+| `OPENAI_API_KEY` | _(unset)_        | In `.env`; turns on the day analysis and the micronutrient matching (the log shows `Micronutrient matching: on` or `off (no OPENAI_API_KEY)`) |
+| `OPENAI_MODEL` | `gpt-6-luna`       | In `.env`; OpenAI reasoning model (GPT-5 or newer) for the day analysis and matching |
 | `APP_PASSWORD` | _(unset)_          | In `.env`; turns on the login screen                       |
 | `DIET_TOKEN`   | _(unset)_          | In `.env`; lets `/api/diet?token=…` skip the login screen  |
 
@@ -255,11 +379,14 @@ server/              API: router, SQLite schema, one module per domain
   openai.js          OpenAI client (structured JSON output)
   analysis.js        AI day analysis: prompt, parsing, routes
   diet-export.js     read-only Markdown diet diary for an LLM
+  micros.js          micronutrient totals per day and month
+  micro-matcher.js   background AI matching of foods to NEVO twins
+  supplements.js     supplements and what you took per day
   auth.js            optional password gate and login route
   backup.js          export / import
 public/              frontend (no build step)
   js/shared/         nutrition maths, dates, constants — used by server and browser
-  js/views/          Day, Meals, Foods, Settings
+  js/views/          Day, Micros, Meals, Foods, Settings
   js/ui/             sheet, rings, food search, amount picker, forms
   js/scanner.js      camera barcode scanning
 test/                node:test suites (Open Food Facts is always mocked)

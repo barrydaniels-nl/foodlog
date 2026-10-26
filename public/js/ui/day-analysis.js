@@ -48,13 +48,14 @@ export function openDayAnalysis({ date }) {
     );
     let content;
     try {
-      const { summary, protein, calories } = await api.post(`/api/days/${date}/analysis`);
+      const { summary, protein, calories, micronutrients } = await api.post(`/api/days/${date}/analysis`);
       content = h(
         'div',
         { class: 'analysis' },
         section('Your day', h('p', { class: 'analysis-summary' }, summary)),
         protein.length > 0 ? section('More protein', tips(protein)) : null,
         calories.length > 0 ? section('Fewer calories', tips(calories)) : null,
+        micronutrients.length > 0 ? section('Micronutrients', tips(micronutrients)) : null,
         refreshButton(),
       );
     } catch (error) {

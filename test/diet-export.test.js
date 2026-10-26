@@ -85,6 +85,83 @@ for (const [query, message] of [
   });
 }
 
+test('diet report lists supplements per day and a micronutrient table', async () => {
+  await client.put('/api/settings', { sex: 'female', birthYear: 1990 });
+  const d3 = (
+    await client.post('/api/supplements', {
+      name: 'Vitamin D 25 µg',
+      unitLabel: 'tablet',
+      nutrients: { vitaminD: 25 },
+    })
+  ).body;
+  const mag = (
+    await client.post('/api/supplements', { name: 'Magnesium', unitLabel: 'capsule', nutrients: { magnesium: 100 } })
+  ).body;
+  await plan('2026-10-20', 'breakfast', oats, 60);
+  await client.post('/api/days/2026-10-20/supplements', { supplementId: d3.id, units: 1 });
+  await client.post('/api/days/2026-10-20/supplements', { supplementId: mag.id, units: 2.5 });
+  await client.post('/api/days/2026-10-19/supplements', { supplementId: mag.id, units: 1 });
+
+  const { body } = await client.get('/api/diet?days=3');
+  assert.match(body, /^Profile: female, 36$/m);
+  assert.match(body, /^Micronutrients use the current best values per food, not snapshots; "≈" marks values that are more than 25% estimated\.$/m);
+  assert.match(body, /^Amounts are lower bounds where foods lack data: "Without data" is the grams of food per day with no value for that nutrient\.$/m);
+  assert.match(body, /^## Micronutrients \(average per completed day\)$/m);
+  assert.match(
+    body,
+    /^\| Nutrient \| Food \| Supplements \| Total \| Recommended \| % \| Upper limit \| Days below 66% \| Estimated \| Without data \|$/m,
+  );
+  const vitaminD = body.match(/^\| Vitamin D \|.*$/m)[0];
+  assert.match(vitaminD, /^\| Vitamin D \| 0 µg \| 25 µg \| 25 µg \| 10 µg \| 250% \| 100 µg \| 0 \/ 1 \| 0% \| 60 g \|$/, 'the oats have no data');
+  assert.match(body, /^\| Salt \|.*\| — \| — \| 6 g \| 0 \/ 1 \|/m);
+  assert.equal(body.match(/^\| [A-Z].*$/gm).length, 1 + 23, 'header plus one row per nutrient');
+  assert.match(body, /^Supplements: Vitamin D 25 µg × 1 tablet, Magnesium × 2\.5 capsule$/m);
+  assert.match(body, /## 2026-10-19 .*\n\nNothing logged\.\nSupplements: Magnesium × 1 capsule/);
+  assert.equal(body.match(/^Supplements:/gm).length, 2);
+});
+
+test('diet report marks a value above the upper limit', async () => {
+  await client.put('/api/settings', { sex: 'female', birthYear: 1990 });
+  const d3 = (await client.post('/api/supplements', { name: 'Mega D', unitLabel: 'tablet', nutrients: { vitaminD: 150 } })).body;
+  await plan('2026-10-20', 'breakfast', oats, 60);
+  await client.post('/api/days/2026-10-20/supplements', { supplementId: d3.id, units: 1 });
+  const { body } = await client.get('/api/diet?days=2');
+  assert.match(body.match(/^\| Vitamin D \|.*$/m)[0], /\| ⚠ 100 µg \| 0 \/ 1 \|/);
+});
+
+test('diet report shows the amount a non-total upper limit was compared with, and — when all food has data', async () => {
+  await client.put('/api/settings', { sex: 'female', birthYear: 1990 });
+  const known = (
+    await client.post('/api/ingredients', { name: 'Known', kcal: 50, protein: 1, carbs: 10, fat: 0, micros: { magnesium: 10 } })
+  ).body;
+  const mag = (await client.post('/api/supplements', { name: 'Magnesium', unitLabel: 'capsule', nutrients: { magnesium: 300 } })).body;
+  const vitA = (await client.post('/api/supplements', { name: 'Vitamin A', unitLabel: 'tablet', nutrients: { vitaminA: 1200 } })).body;
+  await plan('2026-10-20', 'breakfast', known, 100);
+  await client.post('/api/days/2026-10-20/supplements', { supplementId: mag.id, units: 1 });
+  await client.post('/api/days/2026-10-20/supplements', { supplementId: vitA.id, units: 1 });
+
+  const { body } = await client.get('/api/diet?days=2');
+  const rowFor = (label) => body.match(new RegExp(`^\\| ${label} \\|.*$`, 'm'))[0];
+  assert.match(rowFor('Magnesium'), /\| ⚠ 250 mg \(supplements: 300 mg\) \| 0 \/ 1 \| 0% \| — \|$/, 'food magnesium is left out');
+  assert.match(rowFor('Vitamin A'), /\| 3000 µg \(retinol: 1200 µg\) \| 0 \/ 1 \| 0% \| 100 g \|$/);
+  assert.match(rowFor('Iron'), /\| 1 \/ 1 \| 0% \| 100 g \|$/);
+});
+
+test('diet report shows profile not set', async () => {
+  await plan('2026-10-20', 'breakfast', oats, 60);
+  const { body } = await client.get('/api/diet?days=2');
+  assert.match(body, /^Profile: not set$/m);
+  const row = body.match(/^\| Vitamin D \|.*$/m)[0];
+  assert.match(row, /\| — \| — \| — \| 0 \/ 1 \|/);
+  assert.doesNotMatch(body, /^Supplements:/m);
+});
+
+test('diet report replaces the micronutrient table when no day is completed', async () => {
+  const { body } = await client.get('/api/diet?days=2');
+  assert.match(body, /## Micronutrients \(average per completed day\)\n\n- No completed days with food logged in this period\./);
+  assert.doesNotMatch(body, /\| Nutrient \|/);
+});
+
 test('is read-only', async () => {
   const response = await client.post('/api/diet', {});
   assert.equal(response.status, 404);

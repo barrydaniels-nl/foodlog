@@ -5,6 +5,9 @@ import { h } from './ui/dom.js';
 import { api } from './api.js';
 import * as dayView from './views/day.js';
 import * as monthView from './views/month.js';
+import * as microsView from './views/micros.js';
+import * as supplementsView from './views/supplements.js';
+import * as microsReviewView from './views/micros-review.js';
 import * as mealsView from './views/meals.js';
 import * as foodsView from './views/foods.js';
 import * as settingsView from './views/settings.js';
@@ -13,6 +16,11 @@ const ROUTES = [
   { pattern: /^#\/day\/(\d{4}-\d{2}-\d{2})$/, nav: 'day', view: dayView, params: (m) => ({ date: m[1] }) },
   { pattern: /^#\/month\/(\d{4}-\d{2})$/, nav: 'month', view: monthView, params: (m) => ({ month: m[1] }) },
   { pattern: /^#\/month$/, nav: 'month', view: monthView, params: () => ({}) },
+  { pattern: /^#\/micros\/day\/(\d{4}-\d{2}-\d{2})$/, nav: 'micros', view: microsView, params: (m) => ({ mode: 'day', date: m[1] }) },
+  { pattern: /^#\/micros\/month\/(\d{4}-\d{2})$/, nav: 'micros', view: microsView, params: (m) => ({ mode: 'month', month: m[1] }) },
+  { pattern: /^#\/micros\/supplements$/, nav: 'micros', view: supplementsView, params: () => ({}) },
+  { pattern: /^#\/micros\/review$/, nav: 'micros', view: microsReviewView, params: () => ({}) },
+  { pattern: /^#\/micros$/, nav: 'micros', view: microsView, params: () => ({ mode: 'day' }) },
   { pattern: /^#\/meals\/(new|\d+)$/, nav: 'meals', view: mealsView, params: (m) => ({ id: m[1] }) },
   { pattern: /^#\/meals$/, nav: 'meals', view: mealsView, params: () => ({}) },
   { pattern: /^#\/foods$/, nav: 'foods', view: foodsView, params: () => ({}) },

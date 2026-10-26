@@ -1753,3 +1753,273 @@ button.list-item:active {
 .login-sub {
   margin-bottom: 20px;
 }
+
+/* ---------- Micros ---------- */
+
+.notice a {
+  color: inherit;
+  font-weight: 650;
+}
+.micro-coverage {
+  margin: 14px 4px 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.micro-card {
+  padding: 4px 16px;
+}
+.micro-row {
+  --micro-color: var(--faint);
+  --micro-text: var(--text);
+  display: block;
+  width: 100%;
+  padding: 11px 0;
+  border: none;
+  border-top: 1px solid var(--line);
+  background: none;
+  text-align: left;
+}
+.micro-row:first-child {
+  border-top: none;
+}
+.micro-low {
+  --micro-color: var(--danger);
+  --micro-text: var(--danger);
+}
+.micro-fair {
+  --micro-color: var(--amber);
+  --micro-text: #7a5410;
+}
+.micro-good {
+  --micro-color: var(--green);
+  --micro-text: var(--green-strong);
+}
+.micro-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.micro-label {
+  font-weight: 650;
+  font-size: 15px;
+}
+.micro-estimated {
+  color: var(--muted);
+  font-weight: 400;
+}
+.micro-value {
+  flex: none;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--micro-text);
+}
+.micro-bar {
+  position: relative;
+  display: flex;
+  height: 8px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+.micro-bar-food,
+.micro-bar-supp {
+  height: 100%;
+  background: var(--micro-color);
+}
+/* Supplements share the status colour but are lighter, so food and pills stay distinguishable. */
+.micro-bar-supp {
+  opacity: 0.55;
+}
+/* The 100% line; the bar is full at 150%. */
+.micro-bar-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--card);
+}
+.micro-neutral {
+  --micro-color: var(--faint);
+}
+.micro-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.micro-indicative {
+  font-size: 11px;
+  font-style: italic;
+}
+.micro-over {
+  font-weight: 650;
+  color: var(--danger);
+}
+.micro-sources {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.micro-source {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  font-size: 15px;
+}
+.micro-source:first-child {
+  border-top: none;
+}
+.micro-source-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.micro-source-amount {
+  flex: none;
+  color: var(--muted);
+}
+
+.supp-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.supp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.supp-empty {
+  margin: 0;
+  font-size: 14px;
+}
+.supp-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.supp-item:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+.supp-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.supp-name {
+  font-weight: 650;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.supp-brand {
+  font-size: 12px;
+  color: var(--muted);
+}
+.supp-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.supp-stepper .icon-btn:disabled {
+  opacity: 0.35;
+}
+.supp-units {
+  min-width: 64px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 650;
+}
+.supp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.supp-manage {
+  align-self: flex-start;
+  font-size: 14px;
+  color: var(--green-strong);
+}
+.supp-catalogue {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ---------- Supplements, match review, profile ---------- */
+
+[hidden] {
+  display: none !important;
+}
+.nutrient-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px 40px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.nutrient-row .segmented {
+  grid-column: 1 / -1;
+  margin-bottom: 4px;
+}
+.supp-units-input {
+  width: 84px;
+  min-height: 40px;
+  text-align: center;
+}
+.supp-unit-label {
+  min-width: 52px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.supp-card select.input {
+  margin-top: 4px;
+}
+.review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.review-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.review-title {
+  font-weight: 650;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.review-twin {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.review-twin strong {
+  color: var(--text);
+}
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.micro-source-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--muted);
+}

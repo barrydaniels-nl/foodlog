@@ -4,9 +4,13 @@ import { createRouter } from './router.js';
 import { HttpError, assertSameOrigin, sendJson, serveStatic } from './http.js';
 import { createSettingsRepo, registerSettingsRoutes } from './settings.js';
 import { createIngredientsRepo, registerIngredientRoutes } from './ingredients.js';
+import { createFoodMicrosRepo, registerFoodMicroRoutes } from './food-micros.js';
 import { registerOffRoutes } from './off.js';
 import { createMealsRepo, registerMealRoutes } from './meals.js';
 import { createDaysRepo, registerDayRoutes } from './days.js';
+import { createSupplementsRepo, registerSupplementRoutes } from './supplements.js';
+import { createMicrosService, registerMicrosRoutes } from './micros.js';
+import { createMicroMatcher } from './micro-matcher.js';
 import { createBackup } from './backup.js';
 import { createReferenceRepo, registerReferenceRoutes } from './nevo.js';
 import { registerAnalysisRoutes } from './analysis.js';
@@ -30,14 +34,31 @@ const VENDOR_MOUNTS = {
  *   auth?: ReturnType<import('./auth.js').createAuth>|null,
  *   publicDir: string,
  *   backupDir: string,
+ *   startMatcher?: boolean,
  * }} deps
+ * `startMatcher` runs the background micronutrient matcher; it needs `openAi`. Off by default so tests stay quiet.
  * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => Promise<void>}
  */
-export function createApp({ db, offClient, openAi = null, today, now = () => new Date(), auth = null, publicDir, backupDir }) {
-  const settings = createSettingsRepo(db);
-  const ingredients = createIngredientsRepo(db, { today });
+export function createApp({
+  db,
+  offClient,
+  openAi = null,
+  today,
+  now = () => new Date(),
+  auth = null,
+  publicDir,
+  backupDir,
+  startMatcher = false,
+}) {
+  const settings = createSettingsRepo(db, { today });
+  const reference = createReferenceRepo(db);
+  const foodMicros = createFoodMicrosRepo(db, { reference });
+  const ingredients = createIngredientsRepo(db, { today, foodMicros });
   const meals = createMealsRepo(db);
   const days = createDaysRepo(db, { settings, ingredients, meals });
+  const supplements = createSupplementsRepo(db);
+  const micros = createMicrosService(db, { settings, foodMicros, supplements, today });
+  if (startMatcher && openAi) createMicroMatcher({ db, openAi, reference, foodMicros }).start();
 
   const router = createRouter();
   router.add('GET', '/api/health', () => ({ ok: true }));
@@ -45,11 +66,14 @@ export function createApp({ db, offClient, openAi = null, today, now = () => new
   registerIngredientRoutes(router, ingredients);
   registerMealRoutes(router, meals);
   registerDayRoutes(router, days);
-  registerReferenceRoutes(router, { reference: createReferenceRepo(db), ingredients });
+  registerSupplementRoutes(router, supplements);
+  registerReferenceRoutes(router, { reference, ingredients });
+  registerFoodMicroRoutes(router, { foodMicros });
+  registerMicrosRoutes(router, micros);
   createBackup(db, { settings, today, backupDir }).registerRoutes(router);
   if (offClient) registerOffRoutes(router, { offClient, settings });
-  registerAnalysisRoutes(router, { openAi, days, ingredients, today, now });
-  registerDietExportRoutes(router, { days, today });
+  registerAnalysisRoutes(router, { openAi, days, ingredients, micros, supplements, today, now });
+  registerDietExportRoutes(router, { days, micros, today });
   auth?.registerRoutes(router);
 
   return async function handleRequest(req, res) {

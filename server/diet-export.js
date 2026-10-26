@@ -4,6 +4,7 @@
  */
 import { MEAL_SLOTS, SLOT_LABELS } from '../public/js/shared/constants.js';
 import { addDays, formatDayTitle } from '../public/js/shared/dates.js';
+import { ESTIMATED_SHARE_LIMIT, LOW_PERCENT, UlBasis } from '../public/js/shared/micronutrients.js';
 import { averageNutrients, roundNutrients } from '../public/js/shared/nutrition.js';
 import { HttpError } from './http.js';
 import { requireNumber } from './validate.js';
@@ -48,19 +49,84 @@ function summaryLines(completeDays, targets) {
   ];
 }
 
+const NO_VALUE = '—';
+
+/** @param {{sex: string, age: number}|null} profile */
+const formatProfile = (profile) => (profile ? `${profile.sex}, ${profile.age}` : 'not set');
+
+/** @param {number|null} amount @param {string} unit */
+const formatAmount = (amount, unit) => (amount === null ? NO_VALUE : `${amount} ${unit}`);
+
+/** How the amount compared with a non-total upper limit is named; a total-based limit needs no note. */
+const LIMIT_BASIS_LABELS = Object.freeze({ [UlBasis.SUPPLEMENT]: 'supplements', [UlBasis.RETINOL]: 'retinol' });
+
+/**
+ * @param {import('./micros.js').MicroNutrientRow} row
+ * @returns {string} the limit, with the amount it was compared with when that is not the total
+ */
+function formatLimit({ upperLimit, unit, ulBasis, limitAmount, overLimit }) {
+  const basis = LIMIT_BASIS_LABELS[ulBasis];
+  const note = upperLimit !== null && basis && limitAmount !== null ? ` (${basis}: ${formatAmount(limitAmount, unit)})` : '';
+  return `${overLimit ? '⚠ ' : ''}${formatAmount(upperLimit, unit)}${note}`;
+}
+
+/**
+ * @param {import('./micros.js').MicroSummary['nutrients'][number]} row
+ * @param {number} completedDays
+ * @returns {string} one Markdown table row
+ */
+function microRow(row, completedDays) {
+  const { unit } = row;
+  const estimated = row.estimatedShare > ESTIMATED_SHARE_LIMIT ? '≈ ' : '';
+  return `| ${[
+    row.label,
+    formatAmount(row.food, unit),
+    formatAmount(row.supplements, unit),
+    `${estimated}${formatAmount(row.total, unit)}`,
+    formatAmount(row.recommended, unit),
+    row.percent === null ? NO_VALUE : `${row.percent}%`,
+    formatLimit(row),
+    `${row.daysBelow} / ${completedDays}`,
+    `${Math.round(row.estimatedShare * 100)}%`,
+    row.unknownGrams > 0 ? `${row.unknownGrams} g` : NO_VALUE,
+  ].join(' | ')} |`;
+}
+
+/**
+ * @param {import('./micros.js').MicroSummary} summary
+ * @returns {string[]} the micronutrient section, a table unless no day is complete
+ */
+function microLines({ completedDays, nutrients }) {
+  const heading = ['', '## Micronutrients (average per completed day)', ''];
+  if (completedDays === 0) return [...heading, '- No completed days with food logged in this period.'];
+  return [
+    ...heading,
+    `| Nutrient | Food | Supplements | Total | Recommended | % | Upper limit | Days below ${LOW_PERCENT}% | Estimated | Without data |`,
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+    ...nutrients.map((row) => microRow(row, completedDays)),
+  ];
+}
+
+/** @param {import('./supplements.js').SupplementEntry[]} entries */
+const supplementsLine = (entries) =>
+  `Supplements: ${entries.map(({ name, units, unitLabel }) => `${name} × ${units} ${unitLabel}`).join(', ')}`;
+
 /**
  * @param {import('./days.js').Day} day
  * @param {string} todayIso
+ * @param {import('./supplements.js').SupplementEntry[]} supplementEntries what was taken that day
  * @returns {string[]} the day's Markdown section
  */
-function dayLines(day, todayIso) {
+function dayLines(day, todayIso, supplementEntries) {
   const label = day.date === todayIso ? ' (today, may be incomplete)' : '';
   const lines = ['', `## ${day.date} · ${formatDayTitle(day.date, todayIso).subtitle}${label}`, ''];
-  if (!hasFood(day)) return [...lines, 'Nothing logged.'];
+  const supplementLines = supplementEntries.length > 0 ? [supplementsLine(supplementEntries)] : [];
+  if (!hasFood(day)) return [...lines, 'Nothing logged.', ...supplementLines];
 
   const { totals, targets } = day;
   lines.push(`Total: ${totals.kcal} / ${targets.kcal} kcal · ${totals.protein} / ${targets.protein} g protein · `
     + `${totals.carbs} g carbs · ${totals.fat} g fat · ${totals.fiber} g fibre`);
+  lines.push(...supplementLines);
   for (const slot of MEAL_SLOTS) {
     const { entries, totals: slotTotals } = day.slots[slot];
     if (entries.length === 0) continue;
@@ -73,10 +139,14 @@ function dayLines(day, todayIso) {
 }
 
 /**
- * @param {{days: import('./days.js').Day[], todayIso: string}} options days newest first, ending today
+ * @param {{
+ *   days: import('./days.js').Day[],
+ *   todayIso: string,
+ *   micros: {byDate: Map<string, import('./micros.js').MicroDay>, summary: import('./micros.js').MicroSummary},
+ * }} options days newest first, ending today
  * @returns {string} the report as Markdown
  */
-export function buildDietReport({ days, todayIso }) {
+export function buildDietReport({ days, todayIso, micros }) {
   const { targets } = days[0];
   const logged = days.filter(hasFood);
   const completeDays = logged.filter((day) => day.date !== todayIso);
@@ -87,30 +157,40 @@ export function buildDietReport({ days, todayIso }) {
     'Foods are what was planned in the app; past days count as eaten. Today may be incomplete.',
     'A day marked "Nothing logged" has no data; it does not mean nothing was eaten.',
     `Targets are the current settings (no history is kept): ${targets.kcal} kcal and ${targets.protein} g protein per day.`,
+    `Profile: ${formatProfile(micros.summary.profile)}`,
+    `Micronutrients use the current best values per food, not snapshots; "≈" marks values that are more than ${ESTIMATED_SHARE_LIMIT * 100}% estimated.`,
+    'Amounts are lower bounds where foods lack data: "Without data" is the grams of food per day with no value for that nutrient.',
     '',
     '## Summary',
     '',
     `- Days with food logged: ${logged.length} of ${days.length}`,
     ...summaryLines(completeDays, targets),
-    ...days.flatMap((day) => dayLines(day, todayIso)),
+    ...microLines(micros.summary),
+    ...days.flatMap((day) => dayLines(day, todayIso, micros.byDate.get(day.date).supplements)),
     '',
   ].join('\n');
 }
 
 /**
  * @param {ReturnType<import('./router.js').createRouter>} router
- * @param {{days: {getDay: (date: string) => import('./days.js').Day}, today: () => string}} deps
+ * @param {{
+ *   days: {getDay: (date: string) => import('./days.js').Day},
+ *   micros: Pick<ReturnType<import('./micros.js').createMicrosService>, 'getDay' | 'getRange'>,
+ *   today: () => string,
+ * }} deps
  */
-export function registerDietExportRoutes(router, { days, today }) {
+export function registerDietExportRoutes(router, { days, micros, today }) {
   router.add(
     'GET',
     '/api/diet',
     ({ res, query }) => {
       const count = requireDays(query.get('days'));
       const todayIso = today();
+      const dates = Array.from({ length: count }, (_, i) => addDays(todayIso, -i));
       const report = buildDietReport({
-        days: Array.from({ length: count }, (_, i) => days.getDay(addDays(todayIso, -i))),
+        days: dates.map((date) => days.getDay(date)),
         todayIso,
+        micros: { byDate: new Map(dates.map((date) => [date, micros.getDay(date)])), summary: micros.getRange(dates) },
       });
       res.writeHead(200, {
         'content-type': 'text/markdown; charset=utf-8',

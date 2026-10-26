@@ -28,6 +28,7 @@ const app = createApp({
   offClient: createOffClient(),
   openAi,
   auth,
+  startMatcher: true,
   today: () => toIsoDate(new Date()),
   publicDir: path.join(rootDir, 'public'),
   backupDir: path.join(path.dirname(dbPath), 'backups'),
@@ -37,6 +38,7 @@ const server = createServer(app);
 server.listen(port, () => {
   console.log(`Foodlog listening on http://0.0.0.0:${port} (db: ${dbPath})`);
   console.log(openAi ? 'Day analysis: on' : 'Day analysis: off (no OPENAI_API_KEY)');
+  console.log(openAi ? 'Micronutrient matching: on' : 'Micronutrient matching: off (no OPENAI_API_KEY)');
   console.log(auth ? 'Password: on' : 'Password: off (no APP_PASSWORD)');
 });
 

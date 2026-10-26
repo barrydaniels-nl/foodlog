@@ -3,8 +3,10 @@ import { api } from '../api.js';
 import { OFF_COUNTRIES, OFF_WORLD } from '../shared/constants.js';
 import { toIsoDate } from '../shared/dates.js';
 import { parseNumber } from '../shared/nutrition.js';
-import { h } from '../ui/dom.js';
+import { h, guarded } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
+import { nutrientRows } from '../ui/nutrient-rows.js';
+import { segmented } from '../ui/sheet.js';
 import { toast, toastError } from '../ui/toast.js';
 
 const REGION_LABELS = {
@@ -38,8 +40,60 @@ function numberField(label, value, unit) {
 }
 
 /**
- * @param {HTMLElement} container
+ * Sex, birth year and own nutrient amounts: what the Micros page compares your intake with.
+ * @param {{sex: string|null, birthYear: number|null, microTargets: Record<string, number>}} settings
+ * @returns {HTMLElement}
  */
+function profileCard({ sex, birthYear, microTargets }) {
+  let selectedSex = sex;
+  const sexControl = segmented(
+    [
+      { value: 'female', label: 'Female' },
+      { value: 'male', label: 'Male' },
+    ],
+    selectedSex,
+    (value) => (selectedSex = value),
+  );
+  const year = h('input', {
+    class: 'input',
+    type: 'text',
+    inputmode: 'numeric',
+    autocomplete: 'off',
+    placeholder: 'e.g. 1985',
+    value: birthYear ?? '',
+  });
+  const amounts = nutrientRows({ values: microTargets });
+
+  const save = guarded(async () => {
+    const yearText = year.value.trim();
+    const parsedYear = yearText === '' ? null : parseNumber(yearText);
+    if (yearText !== '' && (parsedYear === null || !Number.isInteger(parsedYear))) {
+      toast('Enter your birth year as a whole number.', { type: 'error' });
+      return;
+    }
+    try {
+      await api.put('/api/settings', { sex: selectedSex, birthYear: parsedYear, microTargets: amounts.collect() });
+      toast('Profile saved');
+    } catch (error) {
+      toastError(error);
+    }
+  });
+
+  return h(
+    'section',
+    { class: 'card settings-card' },
+    h('h2', {}, 'Profile'),
+    h('p', {}, 'Used to work out how much of each vitamin and mineral you need.'),
+    h('span', { class: 'field-label' }, 'Sex'),
+    sexControl,
+    h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Birth year'), year),
+    h('div', { class: 'per100' }, 'Your own amounts'),
+    h('p', { class: 'muted', style: { margin: '0 0 10px', fontSize: '13px' } }, 'Replace the recommended amount for a nutrient.'),
+    amounts.element,
+    h('button', { class: 'btn btn-block', type: 'button', onclick: save }, 'Save profile'),
+  );
+}
+
 /** Settings card for uploading the NEVO dataset (RIVM's Dutch food table). */
 function nevoCard(status) {
   const fileInput = h('input', {
@@ -70,6 +124,7 @@ function nevoCard(status) {
         ? `${status.count.toLocaleString('en-GB')} foods from NEVO online ${status.version} are searchable when you add food.`
         : 'Add values for fresh foods like eggs and vegetables: request the free NEVO dataset from RIVM, then upload the file named like NEVO2025_v9.0.csv.',
     ),
+    status && status.hasMicros === false ? h('p', { class: 'notice' }, 'Upload the NEVO file again to add micronutrients') : null,
     h(
       'div',
       { class: 'actions', style: { marginTop: 0 } },
@@ -94,6 +149,9 @@ function nevoCard(status) {
   );
 }
 
+/**
+ * @param {HTMLElement} container
+ */
 export async function render(container) {
   const [settings, reference] = await Promise.all([api.get('/api/settings'), api.get('/api/reference/status')]);
 
@@ -178,6 +236,7 @@ export async function render(container) {
       'div',
       { class: 'stagger' },
       card('Daily targets', 'The day screen measures your plan against these.', targetsForm),
+      profileCard(settings),
       nevoCard(reference.nevo),
       card('Food search region', 'Open Food Facts results from this country are shown first.', region),
       card(

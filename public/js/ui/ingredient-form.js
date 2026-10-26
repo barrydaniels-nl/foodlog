@@ -1,7 +1,10 @@
 /** Create or edit an ingredient (values per 100 g, plus optional portions). */
+import { api } from '../api.js';
 import { parseAmount, parseNumber } from '../shared/nutrition.js';
 import { h, guarded } from './dom.js';
 import { icon } from './icons.js';
+import { microStatusText } from './micro-status.js';
+import { openNevoPicker } from './nevo-picker.js';
 
 const NUTRIENT_FIELDS = [
   { key: 'kcal', label: 'Energy', unit: 'kcal', required: true },
@@ -18,6 +21,50 @@ function displayNumber(value) {
 function textField(label, attrs) {
   const input = h('input', { class: 'input', type: 'text', ...attrs });
   return { input, element: h('label', { class: 'field' }, h('span', { class: 'field-label' }, label), input) };
+}
+
+/**
+ * "Micronutrients from: {twin} · {status}" with a Change action. The twin is
+ * saved straight away rather than with the form, because it is not part of the
+ * ingredient's own values.
+ * @param {number} ingredientId
+ * @returns {HTMLElement}
+ */
+function micronutrientSource(ingredientId) {
+  const text = h('span', {}, 'Micronutrients: loading…');
+  const url = `/api/ingredients/${ingredientId}/micros`;
+
+  function show(info) {
+    const source = info.twinName ?? info.twinCode ?? (Object.keys(info.ai).length ? 'AI estimate' : 'none yet');
+    text.textContent = `Micronutrients from: ${source} · ${microStatusText(info.status)}`;
+  }
+
+  api
+    .get(url)
+    .then(show)
+    .catch((error) => {
+      console.error(error);
+      text.textContent = 'Micronutrients could not be loaded.';
+    });
+
+  return h(
+    'div',
+    { class: 'micro-source-line' },
+    text,
+    h(
+      'button',
+      {
+        class: 'btn btn-ghost btn-sm',
+        type: 'button',
+        onclick: () =>
+          openNevoPicker({
+            title: 'Choose a NEVO twin',
+            onPick: async (code) => show(await api.put(`${url}/twin`, { code })),
+          }),
+      },
+      'Change',
+    ),
+  );
 }
 
 /**
@@ -113,6 +160,8 @@ export function ingredientForm({ initial = {}, notice, submitLabel, onSubmit, on
       if (!label || grams === null) throw new Error('Each portion needs a name and an amount in grams.');
       input.portions.push({ label, grams });
     }
+    // Open Food Facts label micronutrients have no field yet; they ride along unchanged.
+    if (fromOff && initial.micros) input.micros = initial.micros;
     return input;
   }
 
@@ -163,6 +212,7 @@ export function ingredientForm({ initial = {}, notice, submitLabel, onSubmit, on
       'Add portion',
     ),
     barcode.element,
+    initial.id ? micronutrientSource(initial.id) : null,
     submit,
     onDelete
       ? h(

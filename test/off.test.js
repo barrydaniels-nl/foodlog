@@ -94,6 +94,29 @@ test('serving and package sizes become portions', () => {
   ]);
 });
 
+test('mapOffProduct maps micronutrients from grams', () => {
+  const mapped = mapOffProduct(
+    product({}, {
+      'vitamin-d_100g': 0.0000025,
+      salt_100g: 1.2,
+      magnesium_100g: '0.12',
+      folates_100g: 0.00012,
+      'vitamin-b12_100g': 0.0000004,
+      'vitamin-c_100g': 'n/a',
+      calcium_100g: '',
+      iron_100g: ' ',
+      zinc_100g: -1,
+      potassium_100g: 120,
+    }),
+  );
+  assert.deepEqual(mapped.micros, { vitaminD: 2.5, salt: 1.2, magnesium: 120, folate: 120, vitaminB12: 0.4 });
+  assert.equal('vitaminC' in mapped.micros, false, 'invalid values are left out');
+  assert.equal('calcium' in mapped.micros, false, 'a blank is unknown, not 0');
+  assert.equal('iron' in mapped.micros, false, 'a whitespace-only value is unknown, not 0');
+  assert.equal('potassium' in mapped.micros, false, 'an implausible amount (a unit mix-up) is left out');
+  assert.deepEqual(mapOffProduct(product()).micros, {}, 'absent fields are not present');
+});
+
 function searchUrl(call) {
   const url = new URL(call.url);
   return { host: url.hostname, path: url.pathname, q: url.searchParams.get('q') };
