@@ -113,7 +113,9 @@ export function ingredientForm({ initial = {}, notice, submitLabel, onSubmit, on
   const lookupSlot = h('div');
   const estimateNotice = h('p', { class: 'notice', hidden: true }, 'AI estimate. Check it against the label if you have one.');
 
-  /** Overwrites the values, so a second lookup with a better name simply replaces the first. */
+  let estimatedPortionRow = null;
+
+  /** Overwrites the values and its own portion, so a second lookup with a better name simply replaces the first. */
   async function lookUpValues() {
     errorBox.hidden = true;
     const foodName = name.input.value.trim();
@@ -127,6 +129,8 @@ export function ingredientForm({ initial = {}, notice, submitLabel, onSubmit, on
         nutrientInputs[key].value = displayNumber(estimate[key]);
         nutrientInputs[key].classList.remove('needs');
       }
+      estimatedPortionRow?.remove();
+      estimatedPortionRow = estimate.portion ? addPortionRow(estimate.portion) : null;
       estimateNotice.hidden = false;
     } catch (error) {
       console.error(error);
@@ -161,6 +165,7 @@ export function ingredientForm({ initial = {}, notice, submitLabel, onSubmit, on
     );
     row.portion = { label, grams };
     portionRows.append(row);
+    return row;
   }
   for (const portion of initial.portions ?? []) addPortionRow(portion);
 
