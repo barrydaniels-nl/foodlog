@@ -27,7 +27,8 @@ laptop over your Tailscale tailnet.
   minerals, salt and fatty-acid values for a day or a month against Dutch
   reference amounts, and counts the supplements you log (see below).
 - **AI lookup (optional):** when adding a new food, fill in its values per 100 g
-  from just its name, as an estimate to check.
+  and the weight of one item (an onion, a cucumber) from just its name, as an
+  estimate to check.
 - **Day analysis (AI, optional):** an OpenAI-written review of the day you're
   planning, with tips to get more protein, fewer calories and, when needed,
   more of a micronutrient you're short on.
@@ -250,7 +251,14 @@ pregnant or breastfeeding. They come from:
 When you add a new food by hand, **✦ Look up with AI** (under "Per 100 g") fills
 in energy, protein, carbs, fat and fibre from the name you typed. The values are
 estimates, so check them against the label if you have one; a new lookup
-replaces whatever is in those fields. It isn't offered for saved foods or Open
+replaces whatever is in those fields.
+
+For food you count in items, it also adds a portion with the average weight of
+one item, such as "1 onion = 110 g". That weight counts only the part you eat,
+like the values per 100 g. Food you measure, such as milk or rice, gets no
+portion. Portions you added yourself are left alone.
+
+It isn't offered for saved foods or Open
 Food Facts products. It needs the same `OPENAI_API_KEY` as the day analysis
 below, and only the name and brand are sent.
 
@@ -389,7 +397,7 @@ server/              API: router, SQLite schema, one module per domain
   off.js             Open Food Facts client
   openai.js          OpenAI client (structured JSON output)
   analysis.js        AI day analysis: prompt, parsing, routes
-  food-estimate.js   AI lookup of a new food's values per 100 g
+  food-estimate.js   AI lookup of a new food's values and item weight
   diet-export.js     read-only Markdown diet diary for an LLM
   micros.js          micronutrient totals per day and month
   micro-matcher.js   background AI matching of foods to NEVO twins

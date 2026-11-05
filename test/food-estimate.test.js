@@ -4,7 +4,8 @@ import { startTestServer, api } from './helpers.js';
 import { ESTIMATE_SCHEMA, parseEstimate } from '../server/food-estimate.js';
 import { OpenAiError } from '../server/openai.js';
 
-const VALID = { recognised: true, kcal: 62.4, protein: 11.26, carbs: 3.5, fat: 0.2, fiber: 0 };
+const VALID = { recognised: true, kcal: 62.4, protein: 11.26, carbs: 3.5, fat: 0.2, fiber: 0, portionLabel: null, portionGrams: null };
+const VALUES = { kcal: 62, protein: 11.3, carbs: 3.5, fat: 0.2, fiber: 0 };
 const URL_PATH = '/api/ingredients/estimate';
 
 let server;
@@ -29,11 +30,14 @@ async function start(openAi) {
   client = api(server.url);
 }
 
-beforeEach((t) => t.mock.method(console, 'error', () => {}));
+beforeEach((t) => {
+  t.mock.method(console, 'error', () => {});
+  t.mock.method(console, 'warn', () => {});
+});
 afterEach(() => server?.close());
 
 test('parseEstimate rounds like the rest of the app and drops the flag', () => {
-  assert.deepEqual(parseEstimate(VALID), { kcal: 62, protein: 11.3, carbs: 3.5, fat: 0.2, fiber: 0 });
+  assert.deepEqual(parseEstimate(VALID), { ...VALUES, portion: null });
 });
 
 test('parseEstimate returns null for a food the model does not recognise', () => {
@@ -53,6 +57,24 @@ for (const [label, raw] of [
   });
 }
 
+test('parseEstimate returns one average item, with whole grams and a trimmed label', () => {
+  const { portion } = parseEstimate({ ...VALID, portionLabel: ' 1 onion ', portionGrams: 109.6 });
+  assert.deepEqual(portion, { label: '1 onion', grams: 110 });
+});
+
+for (const [label, portionLabel, portionGrams] of [
+  ['a label without grams', '1 onion', null],
+  ['grams without a label', null, 110],
+  ['a blank label', '  ', 110],
+  ['a label longer than a portion allows', 'x'.repeat(41), 110],
+  ['less than a gram', '1 grain', 0.4],
+  ['more than a portion allows', '1 pumpkin', 5001],
+]) {
+  test(`parseEstimate drops only the portion for ${label}`, () => {
+    assert.deepEqual(parseEstimate({ ...VALID, portionLabel, portionGrams }), { ...VALUES, portion: null });
+  });
+}
+
 test('the schema asks for every nutrient, as strict structured output requires', () => {
   assert.deepEqual([...ESTIMATE_SCHEMA.required].sort(), Object.keys(ESTIMATE_SCHEMA.properties).sort());
 });
@@ -61,8 +83,17 @@ test('estimate returns the values per 100 g and sends only name and brand', asyn
   await start(fakeOpenAi());
   const { status, body } = await client.post(URL_PATH, { name: ' Magere kwark ', brand: 'Arla', kcal: 5 });
   assert.equal(status, 200);
-  assert.deepEqual(body, { kcal: 62, protein: 11.3, carbs: 3.5, fat: 0.2, fiber: 0 });
+  assert.deepEqual(body, { ...VALUES, portion: null });
   assert.deepEqual(JSON.parse(calls[0].input), { name: 'Magere kwark', brand: 'Arla' });
+});
+
+test('an estimated portion is accepted when saved with the food', async () => {
+  await start(fakeOpenAi(() => ({ ...VALID, portionLabel: '1 ui', portionGrams: 110 })));
+  const { body } = await client.post(URL_PATH, { name: 'Ui' });
+  assert.deepEqual(body.portion, { label: '1 ui', grams: 110 });
+  const saved = await client.post('/api/ingredients', { name: 'Ui', ...VALUES, portions: [body.portion] });
+  assert.equal(saved.status, 201);
+  assert.equal(saved.body.portions[0].grams, 110);
 });
 
 test('estimate stores nothing', async () => {

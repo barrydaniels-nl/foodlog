@@ -8,6 +8,8 @@ import { optionalString, requireId, requireNumber, requireString } from './valid
 const BARCODE_PATTERN = /^\d{8,14}$/;
 const SOURCES = new Set(['manual', 'off', 'nevo']);
 const MAX_PORTIONS = 10;
+export const MAX_PORTION_LABEL = 40;
+export const MAX_PORTION_GRAMS = 5000;
 const LIST_LIMIT = 50;
 const RECENT_LIMIT = 8;
 
@@ -62,8 +64,8 @@ function validateInput(input) {
     fiber: input.fiber === undefined || input.fiber === null ? 0 : requireNumber(input.fiber, 'fiber', { min: 0, max: NUTRIENT_MAX.fiber }),
     source,
     portions: portions.map((portion, i) => ({
-      label: requireString(portion?.label, `portions[${i}].label`, { maxLength: 40 }),
-      grams: requireNumber(portion?.grams, `portions[${i}].grams`, { min: 0.1, max: 5000 }),
+      label: requireString(portion?.label, `portions[${i}].label`, { maxLength: MAX_PORTION_LABEL }),
+      grams: requireNumber(portion?.grams, `portions[${i}].grams`, { min: 0.1, max: MAX_PORTION_GRAMS }),
     })),
     // Label micronutrients; absent means "leave the stored ones alone".
     micros: input.micros === undefined || input.micros === null ? undefined : validateMicroValues(input.micros, 'micros'),
