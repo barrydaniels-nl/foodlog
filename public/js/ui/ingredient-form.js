@@ -1,6 +1,7 @@
 /** Create or edit an ingredient (values per 100 g, plus optional portions). */
 import { api } from '../api.js';
 import { parseAmount, parseNumber } from '../shared/nutrition.js';
+import { analysisEnabled } from './day-analysis.js';
 import { h, guarded } from './dom.js';
 import { icon } from './icons.js';
 import { microStatusText } from './micro-status.js';
@@ -109,6 +110,44 @@ export function ingredientForm({ initial = {}, notice, submitLabel, onSubmit, on
     );
   });
 
+  const lookupSlot = h('div');
+  const estimateNotice = h('p', { class: 'notice', hidden: true }, 'AI estimate. Check it against the label if you have one.');
+
+  /** Overwrites the values, so a second lookup with a better name simply replaces the first. */
+  async function lookUpValues() {
+    errorBox.hidden = true;
+    const foodName = name.input.value.trim();
+    if (!foodName) {
+      showError('Give the food a name first.');
+      return;
+    }
+    try {
+      const estimate = await api.post('/api/ingredients/estimate', { name: foodName, brand: brand.input.value.trim() || null });
+      for (const { key } of NUTRIENT_FIELDS) {
+        nutrientInputs[key].value = displayNumber(estimate[key]);
+        nutrientInputs[key].classList.remove('needs');
+      }
+      estimateNotice.hidden = false;
+    } catch (error) {
+      console.error(error);
+      showError(error.message);
+    }
+  }
+
+  // Saved foods and Open Food Facts products already have their values; a guess must not replace those.
+  if (!initial.id && !fromOff) {
+    analysisEnabled().then((enabled) => {
+      if (!enabled) return;
+      lookupSlot.append(
+        h(
+          'button',
+          { class: 'btn btn-ghost btn-sm', type: 'button', style: { marginBottom: '14px' }, onclick: guarded(lookUpValues) },
+          '✦ Look up with AI',
+        ),
+      );
+    });
+  }
+
   const portionRows = h('div');
   function addPortionRow(portion = { label: '', grams: '' }) {
     const label = h('input', { class: 'input', type: 'text', placeholder: 'e.g. 1 pot', maxlength: '40', value: portion.label });
@@ -202,6 +241,8 @@ export function ingredientForm({ initial = {}, notice, submitLabel, onSubmit, on
     name.element,
     brand.element,
     h('div', { class: 'per100' }, 'Per 100 g'),
+    lookupSlot,
+    estimateNotice,
     h('div', { class: 'grid-2' }, nutrientFields),
     h('div', { class: 'per100' }, 'Portions'),
     portionRows,

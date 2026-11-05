@@ -11,6 +11,9 @@ const MAX_PORTIONS = 10;
 const LIST_LIMIT = 50;
 const RECENT_LIMIT = 8;
 
+/** Highest accepted value per 100 g. */
+export const NUTRIENT_MAX = Object.freeze({ kcal: 1000, protein: 100, carbs: 100, fat: 100, fiber: 100 });
+
 /**
  * @typedef {object} Ingredient
  * @property {number} id
@@ -52,11 +55,11 @@ function validateInput(input) {
     name: requireString(input.name, 'name', { maxLength: 120 }),
     brand: optionalString(input.brand, 'brand', { maxLength: 80 }),
     barcode: validateBarcode(input.barcode),
-    kcal: requireNumber(input.kcal, 'kcal', { min: 0, max: 1000 }),
-    protein: requireNumber(input.protein, 'protein', { min: 0, max: 100 }),
-    carbs: requireNumber(input.carbs, 'carbs', { min: 0, max: 100 }),
-    fat: requireNumber(input.fat, 'fat', { min: 0, max: 100 }),
-    fiber: input.fiber === undefined || input.fiber === null ? 0 : requireNumber(input.fiber, 'fiber', { min: 0, max: 100 }),
+    kcal: requireNumber(input.kcal, 'kcal', { min: 0, max: NUTRIENT_MAX.kcal }),
+    protein: requireNumber(input.protein, 'protein', { min: 0, max: NUTRIENT_MAX.protein }),
+    carbs: requireNumber(input.carbs, 'carbs', { min: 0, max: NUTRIENT_MAX.carbs }),
+    fat: requireNumber(input.fat, 'fat', { min: 0, max: NUTRIENT_MAX.fat }),
+    fiber: input.fiber === undefined || input.fiber === null ? 0 : requireNumber(input.fiber, 'fiber', { min: 0, max: NUTRIENT_MAX.fiber }),
     source,
     portions: portions.map((portion, i) => ({
       label: requireString(portion?.label, `portions[${i}].label`, { maxLength: 40 }),

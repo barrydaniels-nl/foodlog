@@ -26,6 +26,8 @@ laptop over your Tailscale tailnet.
 - **Micronutrients and supplements:** the **Micros** page shows 23 vitamins,
   minerals, salt and fatty-acid values for a day or a month against Dutch
   reference amounts, and counts the supplements you log (see below).
+- **AI lookup (optional):** when adding a new food, fill in its values per 100 g
+  from just its name, as an estimate to check.
 - **Day analysis (AI, optional):** an OpenAI-written review of the day you're
   planning, with tips to get more protein, fewer calories and, when needed,
   more of a micronutrient you're short on.
@@ -45,7 +47,7 @@ flowchart LR
   ts --> app[Foodlog container :8080]
   app --> db[(SQLite on volume foodlog-data)]
   app -- name search / barcode --> off[Open Food Facts]
-  app -- day analysis, micronutrient matching --> openai[OpenAI]
+  app -- day analysis, micronutrient matching, food lookup --> openai[OpenAI]
 ```
 
 - A small Node 24 server (`node:http` + built-in `node:sqlite`, no runtime npm
@@ -243,6 +245,15 @@ pregnant or breastfeeding. They come from:
 - the [EFSA overview of tolerable upper intake levels](https://www.efsa.europa.eu/sites/default/files/2024-05/ul-summary-report.pdf)
   (version 11, August 2025), which the Gezondheidsraad has adopted.
 
+## AI food lookup
+
+When you add a new food by hand, **✦ Look up with AI** (under "Per 100 g") fills
+in energy, protein, carbs, fat and fibre from the name you typed. The values are
+estimates, so check them against the label if you have one; a new lookup
+replaces whatever is in those fields. It isn't offered for saved foods or Open
+Food Facts products. It needs the same `OPENAI_API_KEY` as the day analysis
+below, and only the name and brand are sent.
+
 ## Day analysis (AI)
 
 On today or a future day, **✦ Analyse day** (under the rings) asks OpenAI for a
@@ -350,8 +361,8 @@ micronutrients still import.
 | `PORT`         | `8080`             | Port inside the container                                  |
 | `DB_PATH`      | `/data/foodlog.db` | SQLite file (on the `foodlog-data` volume)                 |
 | `TZ`           | `Europe/Amsterdam` | Decides what "today" means when ingredient edits update plans |
-| `OPENAI_API_KEY` | _(unset)_        | In `.env`; turns on the day analysis and the micronutrient matching (the log shows `Micronutrient matching: on` or `off (no OPENAI_API_KEY)`) |
-| `OPENAI_MODEL` | `gpt-6-luna`       | In `.env`; OpenAI reasoning model (GPT-5 or newer) for the day analysis and matching |
+| `OPENAI_API_KEY` | _(unset)_        | In `.env`; turns on the day analysis, the AI food lookup and the micronutrient matching (the log shows `Micronutrient matching: on` or `off (no OPENAI_API_KEY)`) |
+| `OPENAI_MODEL` | `gpt-6-luna`       | In `.env`; OpenAI reasoning model (GPT-5 or newer) for the day analysis, food lookup and matching |
 | `APP_PASSWORD` | _(unset)_          | In `.env`; turns on the login screen                       |
 | `DIET_TOKEN`   | _(unset)_          | In `.env`; lets `/api/diet?token=…` skip the login screen  |
 
@@ -378,6 +389,7 @@ server/              API: router, SQLite schema, one module per domain
   off.js             Open Food Facts client
   openai.js          OpenAI client (structured JSON output)
   analysis.js        AI day analysis: prompt, parsing, routes
+  food-estimate.js   AI lookup of a new food's values per 100 g
   diet-export.js     read-only Markdown diet diary for an LLM
   micros.js          micronutrient totals per day and month
   micro-matcher.js   background AI matching of foods to NEVO twins
