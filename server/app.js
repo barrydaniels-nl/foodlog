@@ -14,6 +14,7 @@ import { createMicroMatcher } from './micro-matcher.js';
 import { createBackup } from './backup.js';
 import { createReferenceRepo, registerReferenceRoutes } from './nevo.js';
 import { registerAnalysisRoutes } from './analysis.js';
+import { registerFoodEstimateRoutes } from './food-estimate.js';
 import { registerDietExportRoutes } from './diet-export.js';
 
 const NODE_MODULES = fileURLToPath(new URL('../node_modules/', import.meta.url));
@@ -73,6 +74,7 @@ export function createApp({
   createBackup(db, { settings, today, backupDir }).registerRoutes(router);
   if (offClient) registerOffRoutes(router, { offClient, settings });
   registerAnalysisRoutes(router, { openAi, days, ingredients, micros, supplements, today, now });
+  registerFoodEstimateRoutes(router, { openAi });
   registerDietExportRoutes(router, { days, micros, today });
   auth?.registerRoutes(router);
 
